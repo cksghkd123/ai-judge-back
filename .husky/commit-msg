@@ -1,0 +1,46 @@
+#!/bin/sh
+
+echo "[Husky] 커밋 시작"
+
+# 커밋 메시지 파일 경로
+COMMIT_MSG_FILE=$1
+
+# 현재 브랜치 이름 가져오기
+BRANCH_NAME=$(git symbolic-ref --short HEAD)
+
+# 브랜치에서 숫자(이슈 번호)
+ISSUE_NUM=$(echo "$BRANCH_NAME" | grep -oE '[0-9]+' || true)
+
+# 브랜치 이름에 숫자(이슈 번호)가 없으면 에러 출력 후 커밋 중단
+if [ -z "$ISSUE_NUM" ]; then
+  echo "[Husky] 커밋 실패: 브랜치 이름에 이슈 번호가 포함되어야 합니다."
+  echo "👉 예: feature/42-login, fix/105-bug"
+  echo "main 브랜치에서는 작업할 수 없습니다."
+  exit 1
+fi
+
+ORIGINAL_MSG=$(cat "$COMMIT_MSG_FILE")
+
+# 이미 [#1] 형식이면 통과
+if echo "$ORIGINAL_MSG" | grep -qE "^\[#\d+\]"; then
+  echo "[Husky] 커밋 성공: 이미 완벽한 형식입니다."
+  exit 0
+fi
+
+
+# OS에 따라 sed 명령 다르게 (mac vs linux/windows)
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  sed -i '' "1s/^/[#${ISSUE_NUM}] /" "$COMMIT_MSG_FILE"
+else
+  sed -i "1s/^/[#${ISSUE_NUM}] /" "$COMMIT_MSG_FILE"
+fi
+
+# 메시지 삽입 후 실제 반영됐는지 최종 확인
+FINAL_MSG=$(cat "$COMMIT_MSG_FILE")
+if echo "$FINAL_MSG" | grep -qE "^\[#${ISSUE_NUM}\]"; then
+  echo "[Husky] 커밋 성공: 자동으로 [#${ISSUE_NUM}] 추가 완료"
+  exit 0
+else
+  echo "[Husky] 커밋 실패: 커밋 메시지에 [#${ISSUE_NUM}] 자동 추가에 실패했습니다. 수동으로 작성해주세요."
+  exit 1
+fi
