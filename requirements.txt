@@ -13,8 +13,12 @@ pathspec==1.0.4
 platformdirs==4.5.1
 pydantic==2.12.5
 pydantic_core==2.41.5
+PyJWT==2.11.0
 pytokens==0.4.1
 starlette==0.50.0
 typing-inspection==0.4.2
 typing_extensions==4.15.0
 uvicorn==0.40.0
+httpx>=0.27.0
+python-dotenv>=1.0.0
+pydantic-settings>=2.0.0
