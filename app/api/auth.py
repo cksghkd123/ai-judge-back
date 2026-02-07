@@ -2,7 +2,6 @@ from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel
 
 from app.auth.jwt import create_access_token, decode_token
 from app.auth.pkce import generate_state
@@ -13,6 +12,7 @@ from app.auth.services import (
     get_kakao_user,
 )
 from app.config import settings
+from app.schemas.auth import TokenRequest
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 security = HTTPBearer(auto_error=False)
@@ -29,14 +29,6 @@ def get_current_user(
         return payload
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
-
-
-class TokenRequest(BaseModel):
-    code: str
-    code_verifier: str
-    state: str
-    provider: str  # "kakao" | "google"
-    redirect_uri: str | None = None  # 토큰 교환 시 사용 (미제공 시 설정값 사용)
 
 
 def _get_provider_config(provider: str):
