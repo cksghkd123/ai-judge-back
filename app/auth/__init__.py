@@ -1,3 +1,3 @@
-from app.auth.pkce import generate_state
+from app.auth.supabase_auth import verify_supabase_token
 
-__all__ = ["generate_state"]
+__all__ = ["verify_supabase_token"]

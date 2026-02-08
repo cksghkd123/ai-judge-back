@@ -7,6 +7,8 @@ _ENV_FILE = _APP_DIR / ".env"
 
 
 class OAuthProviderConfig:
+    """레거시: Supabase Auth 전환 후 제거 가능."""
+
     def __init__(
         self,
         client_id: str,
@@ -31,20 +33,22 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # Kakao OAuth
+    # Supabase (Auth + DB)
+    supabase_url: str = ""
+    supabase_anon_key: str = ""
+    """프론트/공개용. 백엔드에서 사용자 권한으로 호출할 때."""
+    supabase_service_role_key: str = ""
+    """서버 전용. RLS 우회·관리 작업용. 노출 금지."""
+    supabase_jwt_secret: str = ""
+    """JWT 검증용 (Dashboard > Settings > API > JWT Secret)."""
+
+    # 레거시 OAuth (Supabase Auth 사용 시 미사용, 추후 제거 가능)
     kakao_client_id: str = ""
     kakao_client_secret: str = ""
     kakao_redirect_uri: str = ""
-
-    # Google OAuth
     google_client_id: str = ""
     google_client_secret: str = ""
     google_redirect_uri: str = ""
-
-    # JWT (우리 서비스 토큰)
-    jwt_secret: str = "change-me-in-production"
-    jwt_algorithm: str = "HS256"
-    jwt_expire_minutes: int = 60 * 24 * 7  # 7일
 
     def get_kakao_config(self) -> OAuthProviderConfig:
         return OAuthProviderConfig(
