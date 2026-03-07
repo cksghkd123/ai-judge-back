@@ -3,7 +3,13 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.auth import get_current_user
 from app.clients.supabase import get_supabase
-from app.schemas.case import CreateCaseRequest, CreateCaseResponse, JoinCaseRequest
+from app.schemas.case import (
+    CaseDetailResponse,
+    CaseListItem,
+    CreateCaseRequest,
+    CreateCaseResponse,
+    JoinCaseRequest,
+)
 
 router = APIRouter(prefix="/judge", tags=["judge"])
 
@@ -71,22 +77,89 @@ def join_case(body: JoinCaseRequest, current_user: dict = Depends(get_current_us
         raise HTTPException(status_code=409, detail="Case already has a counterpart")
 
     if case["created_by"] == user_id:
-        raise HTTPException(status_code=400, detail="Creator cannot join as counterpart")
+        raise HTTPException(
+            status_code=400, detail="Creator cannot join as counterpart"
+        )
 
-    supabase.table("cases").update(
-        {"counterpart_id": user_id, "status": "active"}
-    ).eq("id", body.case_id).execute()
+    supabase.table("cases").update({"counterpart_id": user_id, "status": "active"}).eq(
+        "id", body.case_id
+    ).execute()
 
     return
 
 
+@router.get("/cases", response_model=list[CaseListItem])
+def list_my_cases(
+    current_user: dict = Depends(get_current_user),
+) -> list[CaseListItem]:
+    """내가 참여 중인 사건 목록."""
+
+    user_id = current_user.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User id not found")
+
+    supabase = get_supabase()
+    response = (
+        supabase.table("cases")
+        .select("id, title, status, created_at, created_by, counterpart_id")
+        .or_(f"created_by.eq.{user_id},counterpart_id.eq.{user_id}")
+        .order("created_at", desc=True)
+        .execute()
+    )
+
+    items = []
+    for row in response.data or []:
+        my_role = "creator" if row["created_by"] == user_id else "counterparty"
+        items.append(
+            CaseListItem(
+                id=row["id"],
+                title=row["title"],
+                status=row["status"],
+                created_at=row["created_at"],
+                my_role=my_role,
+            )
+        )
+
+    return items
+
+
+@router.get("/cases/{case_id}", response_model=CaseDetailResponse)
+def get_case_detail(
+    case_id: str,
+    current_user: dict = Depends(get_current_user),
+) -> CaseDetailResponse:
+    """사건 상세 조회"""
+
+    user_id = current_user.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User id not found")
+
+    supabase = get_supabase()
+    response = supabase.table("cases").select("*").eq("id", case_id).execute()
+    if not response.data or len(response.data) == 0:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    row = response.data[0]
+
+    if row["created_by"] != user_id and row.get("counterpart_id") != user_id:
+        raise HTTPException(status_code=403, detail="Not a participant")
+
+    my_role = "creator" if row["created_by"] == user_id else "counterparty"
+    return CaseDetailResponse(
+        id=row["id"],
+        title=row["title"],
+        description=row["description"],
+        issue=row["issue"],
+        status=row["status"],
+        created_by=row["created_by"],
+        counterpart_id=row.get("counterpart_id"),
+        my_role=my_role,
+        created_at=row["created_at"],
+    )
+
+
 @router.post("/cases/{case_id}/statements")
 def submit_statement():
-    pass
-
-
-@router.get("/cases/{case_id}/status")
-def get_case_status():
     pass
 
 

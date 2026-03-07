@@ -31,3 +31,27 @@ class JoinCaseRequest(BaseModel):
 
     case_id: str = Field(..., description="사건 ID")
     invite_token: str = Field(..., description="초대 토큰")
+
+
+class CaseListItem(BaseModel):
+    """사건 목록 항목."""
+
+    id: str = Field(..., description="사건 ID")
+    title: str = Field(..., description="사건 제목")
+    status: str = Field(..., description="진행 상태")
+    created_at: datetime = Field(..., description="생성 시각")
+    my_role: str = Field(..., description="creator | counterpart")
+
+
+class CaseDetailResponse(BaseModel):
+    """사건 상세 응답."""
+
+    id: str = Field(..., description="사건 ID")
+    title: str = Field(..., description="사건 제목")
+    description: str = Field(..., description="사건 설명")
+    issue: str = Field(..., description="논점")
+    status: str = Field(..., description="진행 상태")
+    created_by: str = Field(..., description="생성자 user id")
+    counterpart_id: str | None = Field(None, description="상대방 user id")
+    my_role: str = Field(..., description="creator | counterpart")
+    created_at: datetime = Field(..., description="생성 시각")
