@@ -55,3 +55,24 @@ class CaseDetailResponse(BaseModel):
     counterpart_id: str | None = Field(None, description="상대방 user id")
     my_role: str = Field(..., description="creator | counterpart")
     created_at: datetime = Field(..., description="생성 시각")
+
+
+class EvidenceCreate(BaseModel):
+    """증거 제출 요청."""
+
+    type: str = Field(..., description="text | chat | photo (Step 4에서는 text만)")
+    content: str = Field(..., min_length=1, description="내용 (type=text일 때)")
+    description: str | None = Field(None, description="설명 (선택)")
+
+
+class EvidenceResponse(BaseModel):
+    """증거 1건 응답."""
+
+    id: str = Field(..., description="증거 ID")
+    case_id: str = Field(..., description="사건 ID")
+    user_id: str = Field(..., description="제출자 user id")
+    type: str = Field(..., description="text | chat | photo")
+    content: str | None = Field(None, description="내용")
+    file_path: str | None = Field(None, description="파일 경로")
+    description: str | None = Field(None, description="설명")
+    created_at: datetime = Field(..., description="제출 시각")

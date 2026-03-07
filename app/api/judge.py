@@ -8,6 +8,8 @@ from app.schemas.case import (
     CaseListItem,
     CreateCaseRequest,
     CreateCaseResponse,
+    EvidenceCreate,
+    EvidenceResponse,
     JoinCaseRequest,
 )
 
@@ -158,9 +160,155 @@ def get_case_detail(
     )
 
 
-@router.post("/cases/{case_id}/statements")
-def submit_statement():
-    pass
+@router.post("/cases/{case_id}/evidence", response_model=EvidenceResponse)
+def add_evidence(
+    case_id: str,
+    body: EvidenceCreate,
+    current_user: dict = Depends(get_current_user),
+) -> EvidenceResponse:
+    """증거 1건 제출"""
+
+    user_id = current_user.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User id not found")
+
+    supabase = get_supabase()
+    res = supabase.table("cases").select("*").eq("id", case_id).execute()
+    if not res.data or len(res.data) == 0:
+        raise HTTPException(status_code=404, detail="Case not found")
+    case_row = res.data[0]
+    if case_row["created_by"] != user_id and case_row.get("counterpart_id") != user_id:
+        raise HTTPException(status_code=403, detail="Not a participant")
+    if case_row["status"] != "active":
+        raise HTTPException(
+            status_code=400, detail="Case is not in evidence submission phase"
+        )
+
+    if body.type != "text":
+        raise HTTPException(status_code=400, detail="Step 4 supports type=text only")
+
+    ins = (
+        supabase.table("case_evidence")
+        .insert(
+            {
+                "case_id": case_id,
+                "user_id": user_id,
+                "type": body.type,
+                "content": body.content,
+                "description": body.description,
+            }
+        )
+        .execute()
+    )
+    if not ins.data or len(ins.data) == 0:
+        raise HTTPException(status_code=500, detail="Failed to add evidence")
+
+    created = ins.data[0]
+    return EvidenceResponse(
+        id=created["id"],
+        case_id=created["case_id"],
+        user_id=created["user_id"],
+        type=created["type"],
+        content=created.get("content"),
+        file_path=created.get("file_path"),
+        description=created.get("description"),
+        created_at=created["created_at"],
+    )
+
+
+@router.post("/cases/{case_id}/evidence/complete")
+def complete_evidence(
+    case_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """내 증거 제출 완료 선언. 양측 모두 완료 시 status=reviewing."""
+
+    user_id = current_user.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User id not found")
+
+    supabase = get_supabase()
+    res = supabase.table("cases").select("*").eq("id", case_id).execute()
+    if not res.data or len(res.data) == 0:
+        raise HTTPException(status_code=404, detail="Case not found")
+    case_row = res.data[0]
+    if case_row["created_by"] != user_id and case_row.get("counterpart_id") != user_id:
+        raise HTTPException(status_code=403, detail="Not a participant")
+    my_role = "creator" if case_row["created_by"] == user_id else "counterparty"
+    if case_row["status"] != "active":
+        raise HTTPException(
+            status_code=400, detail="Case is not in evidence submission phase"
+        )
+
+    if my_role == "creator":
+        supabase.table("cases").update({"creator_evidence_complete": True}).eq(
+            "id", case_id
+        ).execute()
+    else:
+        supabase.table("cases").update({"counterparty_evidence_complete": True}).eq(
+            "id", case_id
+        ).execute()
+
+    # 양측 모두 완료였는지 확인 후 status=reviewing
+    updated = (
+        supabase.table("cases")
+        .select("creator_evidence_complete, counterparty_evidence_complete")
+        .eq("id", case_id)
+        .execute()
+    )
+    if updated.data and len(updated.data) > 0:
+        r = updated.data[0]
+        if r.get("creator_evidence_complete") and r.get(
+            "counterparty_evidence_complete"
+        ):
+            supabase.table("cases").update({"status": "reviewing"}).eq(
+                "id", case_id
+            ).execute()
+
+    return
+
+
+@router.get("/cases/{case_id}/evidence", response_model=list[EvidenceResponse])
+def list_evidence(
+    case_id: str,
+    current_user: dict = Depends(get_current_user),
+) -> list[EvidenceResponse]:
+    """해당 사건에서 내가 제출한 증거 목록."""
+    user_id = current_user.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User id not found")
+
+    supabase = get_supabase()
+    res = supabase.table("cases").select("*").eq("id", case_id).execute()
+    if not res.data or len(res.data) == 0:
+        raise HTTPException(status_code=404, detail="Case not found")
+    case_row = res.data[0]
+    if case_row["created_by"] != user_id and case_row.get("counterpart_id") != user_id:
+        raise HTTPException(status_code=403, detail="Not a participant")
+
+    res = (
+        supabase.table("case_evidence")
+        .select("*")
+        .eq("case_id", case_id)
+        .eq("user_id", user_id)
+        .order("created_at", desc=False)
+        .execute()
+    )
+    items = []
+    for row in res.data or []:
+        items.append(
+            EvidenceResponse(
+                id=row["id"],
+                case_id=row["case_id"],
+                user_id=row["user_id"],
+                type=row["type"],
+                content=row.get("content"),
+                file_path=row.get("file_path"),
+                description=row.get("description"),
+                created_at=row["created_at"],
+            )
+        )
+    return items
 
 
 @router.post("/cases/{case_id}/results")
