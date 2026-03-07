@@ -1,3 +1,4 @@
+import uuid
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.auth import get_current_user
@@ -24,6 +25,7 @@ def create_case(
         "description": body.description,
         "issue": body.issue,
         "status": "pending",
+        "invite_token": str(uuid.uuid4()),
     }
     response = supabase.table("cases").insert(row).execute()
 
@@ -39,6 +41,7 @@ def create_case(
         status=created["status"],
         created_by=created["created_by"],
         created_at=created["created_at"],
+        invite_token=created["invite_token"],
     )
 
 

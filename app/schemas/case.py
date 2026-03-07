@@ -23,3 +23,4 @@ class CreateCaseResponse(BaseModel):
     status: str = Field(..., description="진행 상태")
     created_by: str = Field(..., description="생성자 user id")
     created_at: datetime = Field(..., description="생성 시각")
+    invite_token: str = Field(..., description="초대 토큰")
