@@ -24,3 +24,10 @@ class CreateCaseResponse(BaseModel):
     created_by: str = Field(..., description="생성자 user id")
     created_at: datetime = Field(..., description="생성 시각")
     invite_token: str = Field(..., description="초대 토큰")
+
+
+class JoinCaseRequest(BaseModel):
+    """사건 참여 요청."""
+
+    case_id: str = Field(..., description="사건 ID")
+    invite_token: str = Field(..., description="초대 토큰")
