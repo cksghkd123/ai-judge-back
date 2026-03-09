@@ -149,7 +149,8 @@ enabled = true
 # in emails.
 site_url = "http://127.0.0.1:3000"
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+# 로컬 개발 시 앱으로 돌아오는 URL (localhost/127.0.0.1 둘 다 추가 권장)
+additional_redirect_urls = ["http://localhost:3000/sign-in, http://127.0.0.1:3000/sign-in, https://127.0.0.1:3000", "http://127.0.0.1:3000", "http://localhost:3000", "https://localhost:3000"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to the local API URL (http://127.0.0.1:<port>/auth/v1).
@@ -298,6 +299,29 @@ max_frequency = "5s"
 # Use an external OAuth provider. The full list of providers are: `apple`, `azure`, `bitbucket`,
 # `discord`, `facebook`, `github`, `gitlab`, `google`, `keycloak`, `linkedin_oidc`, `notion`, `twitch`,
 # `twitter`, `x`, `slack`, `spotify`, `workos`, `zoom`.
+# 로컬 개발 시: Google/Kakao 개발자 콘솔에 리다이렉트 URI 추가 필요
+#   - http://localhost:54321/auth/v1/callback
+#   - http://127.0.0.1:54321/auth/v1/callback
+# Google 로컬: skip_nonce_check = true 필요. .env에 SUPABASE_AUTH_EXTERNAL_GOOGLE_* 설정.
+
+[auth.external.google]
+enabled = true
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+redirect_uri = "http://127.0.0.1:54321/auth/v1/callback"
+skip_nonce_check = true
+url = ""
+email_optional = false
+
+[auth.external.kakao]
+enabled = true
+client_id = "env(SUPABASE_AUTH_EXTERNAL_KAKAO_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_KAKAO_SECRET)"
+redirect_uri = "http://127.0.0.1:54321/auth/v1/callback"
+skip_nonce_check = false
+url = ""
+email_optional = true
+
 [auth.external.apple]
 enabled = false
 client_id = ""
@@ -365,7 +389,8 @@ deno_version = 2
 # secret_key = "env(SECRET_VALUE)"
 
 [analytics]
-enabled = true
+# 로컬 개발 시 Docker 소켓 이슈로 비활성화 권장 (Mac 등)
+enabled = false
 port = 54327
 # Configure one of the supported backends: `postgres`, `bigquery`.
 backend = "postgres"

@@ -1,14 +1,14 @@
 import uuid
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
-from app.api.auth import get_current_user
-from app.clients.supabase import get_supabase
+from app.api.auth import get_access_token, get_current_user
+from app.clients.supabase import get_supabase_for_user
+from app.config import settings
 from app.schemas.case import (
     CaseDetailResponse,
     CaseListItem,
     CreateCaseRequest,
     CreateCaseResponse,
-    EvidenceCreate,
     EvidenceResponse,
     JoinCaseRequest,
 )
@@ -20,6 +20,7 @@ router = APIRouter(prefix="/judge", tags=["judge"])
 def create_case(
     body: CreateCaseRequest,
     current_user: dict = Depends(get_current_user),
+    access_token: str = Depends(get_access_token),
 ) -> CreateCaseResponse:
     """사건을 시작(생성)합니다."""
 
@@ -27,7 +28,7 @@ def create_case(
     if not user_id:
         raise HTTPException(status_code=401, detail="User id not found")
 
-    supabase = get_supabase()
+    supabase = get_supabase_for_user(access_token)
     row = {
         "created_by": user_id,
         "title": body.title,
@@ -55,14 +56,18 @@ def create_case(
 
 
 @router.post("/cases/join")
-def join_case(body: JoinCaseRequest, current_user: dict = Depends(get_current_user)):
+def join_case(
+    body: JoinCaseRequest,
+    current_user: dict = Depends(get_current_user),
+    access_token: str = Depends(get_access_token),
+):
     """초대 토큰을 이용해 사건에 참여합니다."""
 
     user_id = current_user.get("sub")
     if not user_id:
         raise HTTPException(status_code=401, detail="User id not found")
 
-    supabase = get_supabase()
+    supabase = get_supabase_for_user(access_token)
     response = supabase.table("cases").select("*").eq("id", body.case_id).execute()
 
     if not response.data or len(response.data) == 0:
@@ -93,6 +98,7 @@ def join_case(body: JoinCaseRequest, current_user: dict = Depends(get_current_us
 @router.get("/cases", response_model=list[CaseListItem])
 def list_my_cases(
     current_user: dict = Depends(get_current_user),
+    access_token: str = Depends(get_access_token),
 ) -> list[CaseListItem]:
     """내가 참여 중인 사건 목록."""
 
@@ -100,7 +106,7 @@ def list_my_cases(
     if not user_id:
         raise HTTPException(status_code=401, detail="User id not found")
 
-    supabase = get_supabase()
+    supabase = get_supabase_for_user(access_token)
     response = (
         supabase.table("cases")
         .select("id, title, status, created_at, created_by, counterpart_id")
@@ -129,6 +135,7 @@ def list_my_cases(
 def get_case_detail(
     case_id: str,
     current_user: dict = Depends(get_current_user),
+    access_token: str = Depends(get_access_token),
 ) -> CaseDetailResponse:
     """사건 상세 조회"""
 
@@ -136,7 +143,7 @@ def get_case_detail(
     if not user_id:
         raise HTTPException(status_code=401, detail="User id not found")
 
-    supabase = get_supabase()
+    supabase = get_supabase_for_user(access_token)
     response = supabase.table("cases").select("*").eq("id", case_id).execute()
     if not response.data or len(response.data) == 0:
         raise HTTPException(status_code=404, detail="Case not found")
@@ -161,18 +168,25 @@ def get_case_detail(
 
 
 @router.post("/cases/{case_id}/evidence", response_model=EvidenceResponse)
-def add_evidence(
+async def add_evidence(
     case_id: str,
-    body: EvidenceCreate,
+    type: str = Form(..., description="text | chat | photo"),
+    content: str | None = Form(None, description="type=text일 때 필수"),
+    description: str | None = Form(None),
+    file: UploadFile | None = File(None, description="type=chat|photo일 때 이미지 파일"),
     current_user: dict = Depends(get_current_user),
+    access_token: str = Depends(get_access_token),
 ) -> EvidenceResponse:
-    """증거 1건 제출"""
+    """증거 1건 제출. text: Form만. chat/photo: file 필수(multipart)."""
 
     user_id = current_user.get("sub")
     if not user_id:
         raise HTTPException(status_code=401, detail="User id not found")
 
-    supabase = get_supabase()
+    if type not in ("text", "chat", "photo"):
+        raise HTTPException(status_code=400, detail="type must be text, chat, or photo")
+
+    supabase = get_supabase_for_user(access_token)
     res = supabase.table("cases").select("*").eq("id", case_id).execute()
     if not res.data or len(res.data) == 0:
         raise HTTPException(status_code=404, detail="Case not found")
@@ -184,8 +198,36 @@ def add_evidence(
             status_code=400, detail="Case is not in evidence submission phase"
         )
 
-    if body.type != "text":
-        raise HTTPException(status_code=400, detail="Step 4 supports type=text only")
+    content_val: str | None = (content or "").strip() or None
+    file_path_val: str | None = None
+
+    if type == "text":
+        if not content_val:
+            raise HTTPException(status_code=400, detail="content required for type=text")
+    else:
+        # chat | photo: file 필수
+        if not file or not file.filename:
+            raise HTTPException(
+                status_code=400, detail="file required for type=chat and type=photo"
+            )
+        if not file.content_type or not file.content_type.startswith("image/"):
+            raise HTTPException(
+                status_code=400, detail="Only image files are allowed for chat/photo"
+            )
+        data = await file.read()
+        if not data:
+            raise HTTPException(status_code=400, detail="Empty file not allowed")
+        # Storage 경로: {case_id}/{user_id}/{uuid}_{filename}
+        ext = file.filename.split(".")[-1] if "." in file.filename else "bin"
+        safe_name = f"{uuid.uuid4()}_{file.filename or 'image'}"
+        storage_path = f"{case_id}/{user_id}/{safe_name}"
+        bucket = settings.supabase_storage_bucket
+        supabase.storage.from_(bucket).upload(
+            storage_path,
+            data,
+            file_options={"content-type": file.content_type or "application/octet-stream"},
+        )
+        file_path_val = storage_path
 
     ins = (
         supabase.table("case_evidence")
@@ -193,9 +235,10 @@ def add_evidence(
             {
                 "case_id": case_id,
                 "user_id": user_id,
-                "type": body.type,
-                "content": body.content,
-                "description": body.description,
+                "type": type,
+                "content": content_val,
+                "file_path": file_path_val,
+                "description": (description or "").strip() or None,
             }
         )
         .execute()
@@ -220,6 +263,7 @@ def add_evidence(
 def complete_evidence(
     case_id: str,
     current_user: dict = Depends(get_current_user),
+    access_token: str = Depends(get_access_token),
 ):
     """내 증거 제출 완료 선언. 양측 모두 완료 시 status=reviewing."""
 
@@ -227,7 +271,7 @@ def complete_evidence(
     if not user_id:
         raise HTTPException(status_code=401, detail="User id not found")
 
-    supabase = get_supabase()
+    supabase = get_supabase_for_user(access_token)
     res = supabase.table("cases").select("*").eq("id", case_id).execute()
     if not res.data or len(res.data) == 0:
         raise HTTPException(status_code=404, detail="Case not found")
@@ -272,13 +316,14 @@ def complete_evidence(
 def list_evidence(
     case_id: str,
     current_user: dict = Depends(get_current_user),
+    access_token: str = Depends(get_access_token),
 ) -> list[EvidenceResponse]:
     """해당 사건에서 내가 제출한 증거 목록."""
     user_id = current_user.get("sub")
     if not user_id:
         raise HTTPException(status_code=401, detail="User id not found")
 
-    supabase = get_supabase()
+    supabase = get_supabase_for_user(access_token)
     res = supabase.table("cases").select("*").eq("id", case_id).execute()
     if not res.data or len(res.data) == 0:
         raise HTTPException(status_code=404, detail="Case not found")

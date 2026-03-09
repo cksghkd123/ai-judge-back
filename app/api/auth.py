@@ -21,6 +21,14 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 
+def get_access_token(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    _user: dict = Depends(get_current_user),
+) -> str:
+    """검증된 요청의 Bearer 토큰 문자열 반환. Supabase 호출 시 사용자 권한(RLS)으로 쓰려면 이걸 사용."""
+    return credentials.credentials
+
+
 @router.get("/me")
 def get_me(current_user: dict = Depends(get_current_user)) -> dict:
     """현재 로그인 사용자 정보 (Supabase JWT 검증 필요)."""

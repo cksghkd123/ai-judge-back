@@ -10,6 +10,6 @@
 - 스토리지(S3 등): clients/storage.py → get_storage_client()
 """
 
-from app.clients.supabase import get_supabase
+from app.clients.supabase import get_supabase, get_supabase_for_user
 
-__all__ = ["get_supabase"]
+__all__ = ["get_supabase", "get_supabase_for_user"]

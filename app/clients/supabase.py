@@ -1,27 +1,47 @@
 """
 Supabase 클라이언트 (DB + Auth 연동).
 
-- 서버 전용 작업(RLS 우회, 관리)에는 service_role_key 사용.
-- 사용자 권한으로 DB 접근이 필요하면 anon_key + 사용자 JWT 로 별도 클라이언트 생성 가능.
+- get_supabase_for_user(access_token): anon_key + 사용자 JWT → RLS 적용 (옵션 B, 권장).
+- get_supabase(): service_role_key → RLS 우회 (관리/배치용).
 """
 
-from supabase import Client, create_client
+from supabase import Client, ClientOptions, create_client
 
 from app.config import settings
 
-_cached_client: Client | None = None
+_cached_admin_client: Client | None = None
+
+
+def get_supabase_for_user(access_token: str) -> Client:
+    """
+    요청한 사용자의 JWT로 Supabase 클라이언트 생성.
+    anon_key + Authorization: Bearer <token> 이므로 DB/Storage 요청에 RLS가 적용됨 (옵션 B).
+    """
+    if not settings.supabase_url or not settings.supabase_anon_key:
+        raise ValueError(
+            "supabase_url and supabase_anon_key must be set for user-scoped Supabase client"
+        )
+    options = ClientOptions(
+        headers={"Authorization": f"Bearer {access_token}"},
+        persist_session=False,
+    )
+    return create_client(
+        settings.supabase_url,
+        settings.supabase_anon_key,
+        options=options,
+    )
 
 
 def get_supabase() -> Client:
-    """서버 전용 Supabase 클라이언트 (service_role_key). RLS 우회 가능."""
-    global _cached_client
-    if _cached_client is None:
+    """서버 전용 Supabase 클라이언트 (service_role_key). RLS 우회. 관리/배치용."""
+    global _cached_admin_client
+    if _cached_admin_client is None:
         if not settings.supabase_url or not settings.supabase_service_role_key:
             raise ValueError(
                 "supabase_url and supabase_service_role_key must be set for server-side Supabase client"
             )
-        _cached_client = create_client(
+        _cached_admin_client = create_client(
             settings.supabase_url,
             settings.supabase_service_role_key,
         )
-    return _cached_client
+    return _cached_admin_client
