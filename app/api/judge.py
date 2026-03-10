@@ -252,7 +252,7 @@ async def add_evidence(
         safe_name = f"{uuid.uuid4()}_{file.filename or 'image'}"
         storage_path = f"{case_id}/{user_id}/{safe_name}"
         bucket = settings.supabase_storage_bucket
-        supabase.storage.from_(bucket).upload(
+        get_supabase().storage.from_(bucket).upload(
             storage_path,
             data,
             file_options={
