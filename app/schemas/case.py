@@ -43,6 +43,17 @@ class CaseListItem(BaseModel):
     my_role: str = Field(..., description="creator | counterpart")
 
 
+class CasePreviewResponse(BaseModel):
+    """사건 미리보기 (초대 링크용)"""
+
+    id: str = Field(..., description="사건 ID")
+    title: str = Field(..., description="사건 제목")
+    description: str = Field(..., description="사건 설명")
+    issue: str = Field(..., description="논점")
+    status: str = Field(..., description="진행 상태")
+    created_at: datetime = Field(..., description="생성 시각")
+
+
 class CaseDetailResponse(BaseModel):
     """사건 상세 응답."""
 

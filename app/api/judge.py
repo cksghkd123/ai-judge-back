@@ -2,11 +2,12 @@ import uuid
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from app.api.auth import get_access_token, get_current_user
-from app.clients.supabase import get_supabase_for_user
+from app.clients.supabase import get_supabase, get_supabase_for_user
 from app.config import settings
 from app.schemas.case import (
     CaseDetailResponse,
     CaseListItem,
+    CasePreviewResponse,
     CreateCaseRequest,
     CreateCaseResponse,
     EvidenceResponse,
@@ -167,13 +168,39 @@ def get_case_detail(
     )
 
 
+@router.get("/cases/preview/{case_id}", response_model=CasePreviewResponse)
+def get_case_preview(case_id: str) -> CasePreviewResponse:
+    """사건 JOIN 때 확인용"""
+
+    supabase = get_supabase()
+    response = supabase.table("cases").select("*").eq("id", case_id).execute()
+    if not response.data or len(response.data) == 0:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    row = response.data[0]
+
+    if row["status"] != "pending":
+        raise HTTPException(status_code=400, detail="Case is not pending")
+
+    return CasePreviewResponse(
+        id=row["id"],
+        title=row["title"],
+        description=row["description"],
+        issue=row["issue"],
+        status=row["status"],
+        created_at=row["created_at"],
+    )
+
+
 @router.post("/cases/{case_id}/evidence", response_model=EvidenceResponse)
 async def add_evidence(
     case_id: str,
     type: str = Form(..., description="text | chat | photo"),
     content: str | None = Form(None, description="type=text일 때 필수"),
     description: str | None = Form(None),
-    file: UploadFile | None = File(None, description="type=chat|photo일 때 이미지 파일"),
+    file: UploadFile | None = File(
+        None, description="type=chat|photo일 때 이미지 파일"
+    ),
     current_user: dict = Depends(get_current_user),
     access_token: str = Depends(get_access_token),
 ) -> EvidenceResponse:
@@ -203,7 +230,9 @@ async def add_evidence(
 
     if type == "text":
         if not content_val:
-            raise HTTPException(status_code=400, detail="content required for type=text")
+            raise HTTPException(
+                status_code=400, detail="content required for type=text"
+            )
     else:
         # chat | photo: file 필수
         if not file or not file.filename:
@@ -225,7 +254,9 @@ async def add_evidence(
         supabase.storage.from_(bucket).upload(
             storage_path,
             data,
-            file_options={"content-type": file.content_type or "application/octet-stream"},
+            file_options={
+                "content-type": file.content_type or "application/octet-stream"
+            },
         )
         file_path_val = storage_path
 
