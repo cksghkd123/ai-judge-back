@@ -17,7 +17,7 @@ from app.schemas.case import (
 router = APIRouter(prefix="/judge", tags=["judge"])
 
 
-@router.post("/cases", response_model=CreateCaseResponse)
+@router.post("/case", response_model=CreateCaseResponse)
 def create_case(
     body: CreateCaseRequest,
     current_user: dict = Depends(get_current_user),
@@ -56,7 +56,7 @@ def create_case(
     )
 
 
-@router.post("/cases/join")
+@router.post("/case/join")
 def join_case(
     body: JoinCaseRequest,
     current_user: dict = Depends(get_current_user),
@@ -68,7 +68,7 @@ def join_case(
     if not user_id:
         raise HTTPException(status_code=401, detail="User id not found")
 
-    supabase = get_supabase_for_user(access_token)
+    supabase = get_supabase()
     response = supabase.table("cases").select("*").eq("id", body.case_id).execute()
 
     if not response.data or len(response.data) == 0:
@@ -132,7 +132,7 @@ def list_my_cases(
     return items
 
 
-@router.get("/cases/{case_id}", response_model=CaseDetailResponse)
+@router.get("/case/{case_id}", response_model=CaseDetailResponse)
 def get_case_detail(
     case_id: str,
     current_user: dict = Depends(get_current_user),
@@ -165,10 +165,11 @@ def get_case_detail(
         counterpart_id=row.get("counterpart_id"),
         my_role=my_role,
         created_at=row["created_at"],
+        invite_token=row["invite_token"],
     )
 
 
-@router.get("/cases/preview/{case_id}", response_model=CasePreviewResponse)
+@router.get("/case/preview/{case_id}", response_model=CasePreviewResponse)
 def get_case_preview(case_id: str) -> CasePreviewResponse:
     """사건 JOIN 때 확인용"""
 
@@ -192,7 +193,7 @@ def get_case_preview(case_id: str) -> CasePreviewResponse:
     )
 
 
-@router.post("/cases/{case_id}/evidence", response_model=EvidenceResponse)
+@router.post("/case/{case_id}/evidence", response_model=EvidenceResponse)
 async def add_evidence(
     case_id: str,
     type: str = Form(..., description="text | chat | photo"),
@@ -290,7 +291,7 @@ async def add_evidence(
     )
 
 
-@router.post("/cases/{case_id}/evidence/complete")
+@router.post("/case/{case_id}/evidence/complete")
 def complete_evidence(
     case_id: str,
     current_user: dict = Depends(get_current_user),
@@ -343,26 +344,27 @@ def complete_evidence(
     return
 
 
-@router.get("/cases/{case_id}/evidence", response_model=list[EvidenceResponse])
-def list_evidence(
+@router.get("/case/{case_id}/my-evidences", response_model=list[EvidenceResponse])
+def list_my_evidence(
     case_id: str,
     current_user: dict = Depends(get_current_user),
     access_token: str = Depends(get_access_token),
 ) -> list[EvidenceResponse]:
     """해당 사건에서 내가 제출한 증거 목록."""
+
     user_id = current_user.get("sub")
     if not user_id:
         raise HTTPException(status_code=401, detail="User id not found")
 
     supabase = get_supabase_for_user(access_token)
-    res = supabase.table("cases").select("*").eq("id", case_id).execute()
-    if not res.data or len(res.data) == 0:
+    response = supabase.table("cases").select("*").eq("id", case_id).execute()
+    if not response.data or len(response.data) == 0:
         raise HTTPException(status_code=404, detail="Case not found")
-    case_row = res.data[0]
-    if case_row["created_by"] != user_id and case_row.get("counterpart_id") != user_id:
+    case_row = response.data[0]
+    if case_row["created_by"] != user_id and case_row["counterpart_id"] != user_id:
         raise HTTPException(status_code=403, detail="Not a participant")
 
-    res = (
+    response = (
         supabase.table("case_evidence")
         .select("*")
         .eq("case_id", case_id)
@@ -371,7 +373,7 @@ def list_evidence(
         .execute()
     )
     items = []
-    for row in res.data or []:
+    for row in response.data or []:
         items.append(
             EvidenceResponse(
                 id=row["id"],
@@ -385,6 +387,73 @@ def list_evidence(
             )
         )
     return items
+
+
+@router.get(
+    "/case/{case_id}/counterpart-evidences", response_model=list[EvidenceResponse]
+)
+def list_counterpart_evidence(
+    case_id: str,
+    current_user: dict = Depends(get_current_user),
+    access_token: str = Depends(get_access_token),
+) -> list[EvidenceResponse]:
+    """해당 사건에서 상대가 제출한 증거 목록."""
+
+    user_id = current_user.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User id not found")
+
+    supabase = get_supabase_for_user(access_token)
+    response = supabase.table("cases").select("*").eq("id", case_id).execute()
+    if not response.data or len(response.data) == 0:
+        raise HTTPException(status_code=404, detail="Case not found")
+    case_row = response.data[0]
+    if case_row["created_by"] != user_id and case_row.get("counterpart_id") != user_id:
+        raise HTTPException(status_code=403, detail="Not a participant")
+
+    if case_row.get("counterpart_id") is None:
+        raise HTTPException(status_code=400, detail="Case has no counterpart yet")
+
+    # 상대방 user_id: 내가 creator면 counterpart_id, 내가 counterpart면 created_by
+    other_user_id = (
+        case_row["created_by"]
+        if user_id == case_row["counterpart_id"]
+        else case_row["counterpart_id"]
+    )
+
+    response = (
+        supabase.table("case_evidence")
+        .select("*")
+        .eq("case_id", case_id)
+        .eq("user_id", other_user_id)
+        .order("created_at", desc=False)
+        .execute()
+    )
+    items = []
+    for row in response.data or []:
+        items.append(
+            EvidenceResponse(
+                id=row["id"],
+                case_id=row["case_id"],
+                user_id=row["user_id"],
+                type=row["type"],
+                content=row.get("content"),
+                file_path=row.get("file_path"),
+                description=row.get("description"),
+                created_at=row["created_at"],
+            )
+        )
+    return items
+
+
+@router.post("/judge/case/{case_id}/evidence/{evidence_id}/review")
+def review_evidence(
+    case_id: str,
+    evidence_id: str,
+    current_user: dict = Depends(get_current_user),
+    access_token: str = Depends(get_access_token),
+):
+    pass
 
 
 @router.post("/cases/{case_id}/results")

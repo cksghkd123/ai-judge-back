@@ -66,6 +66,7 @@ class CaseDetailResponse(BaseModel):
     counterpart_id: str | None = Field(None, description="상대방 user id")
     my_role: str = Field(..., description="creator | counterpart")
     created_at: datetime = Field(..., description="생성 시각")
+    invite_token: str = Field(..., description="초대 토큰")
 
 
 class EvidenceCreate(BaseModel):
