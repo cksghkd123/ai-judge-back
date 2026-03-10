@@ -72,9 +72,11 @@ class CaseDetailResponse(BaseModel):
 class EvidenceCreate(BaseModel):
     """증거 제출 요청."""
 
-    type: str = Field(..., description="text | chat | photo (Step 4에서는 text만)")
-    content: str = Field(..., min_length=1, description="내용 (type=text일 때)")
-    description: str | None = Field(None, description="설명 (선택)")
+    type: str = Field(..., description="text | chat | photo")
+    content: str | None = Field(
+        None,
+        description="type=text일 때 본문(필수), type=chat|photo일 때 설명(선택)",
+    )
 
 
 class EvidenceResponse(BaseModel):
@@ -84,7 +86,6 @@ class EvidenceResponse(BaseModel):
     case_id: str = Field(..., description="사건 ID")
     user_id: str = Field(..., description="제출자 user id")
     type: str = Field(..., description="text | chat | photo")
-    content: str | None = Field(None, description="내용")
+    content: str | None = Field(None, description="내용 (text=본문, photo/chat=설명)")
     file_path: str | None = Field(None, description="파일 경로")
-    description: str | None = Field(None, description="설명")
     created_at: datetime = Field(..., description="제출 시각")

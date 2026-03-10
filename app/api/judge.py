@@ -197,8 +197,9 @@ def get_case_preview(case_id: str) -> CasePreviewResponse:
 async def add_evidence(
     case_id: str,
     type: str = Form(..., description="text | chat | photo"),
-    content: str | None = Form(None, description="type=text일 때 필수"),
-    description: str | None = Form(None),
+    content: str | None = Form(
+        None, description="type=text일 때 본문(필수), type=chat|photo일 때 설명(선택)"
+    ),
     file: UploadFile | None = File(
         None, description="type=chat|photo일 때 이미지 파일"
     ),
@@ -270,7 +271,6 @@ async def add_evidence(
                 "type": type,
                 "content": content_val,
                 "file_path": file_path_val,
-                "description": (description or "").strip() or None,
             }
         )
         .execute()
@@ -286,7 +286,6 @@ async def add_evidence(
         type=created["type"],
         content=created.get("content"),
         file_path=created.get("file_path"),
-        description=created.get("description"),
         created_at=created["created_at"],
     )
 
@@ -382,7 +381,6 @@ def list_my_evidence(
                 type=row["type"],
                 content=row.get("content"),
                 file_path=row.get("file_path"),
-                description=row.get("description"),
                 created_at=row["created_at"],
             )
         )
@@ -439,7 +437,6 @@ def list_counterpart_evidence(
                 type=row["type"],
                 content=row.get("content"),
                 file_path=row.get("file_path"),
-                description=row.get("description"),
                 created_at=row["created_at"],
             )
         )
