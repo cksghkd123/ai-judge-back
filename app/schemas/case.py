@@ -67,6 +67,12 @@ class CaseDetailResponse(BaseModel):
     my_role: str = Field(..., description="creator | counterpart")
     created_at: datetime = Field(..., description="생성 시각")
     invite_token: str = Field(..., description="초대 토큰")
+    creator_evidence_complete: bool = Field(
+        False, description="원고(생성자) 쪽 증거 제출 완료 여부"
+    )
+    counterparty_evidence_complete: bool = Field(
+        False, description="피고(상대방) 쪽 증거 제출 완료 여부"
+    )
 
 
 class EvidenceCreate(BaseModel):

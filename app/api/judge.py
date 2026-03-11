@@ -166,6 +166,8 @@ def get_case_detail(
         my_role=my_role,
         created_at=row["created_at"],
         invite_token=row["invite_token"],
+        creator_evidence_complete=row["creator_evidence_complete"],
+        counterparty_evidence_complete=row["counterparty_evidence_complete"],
     )
 
 
