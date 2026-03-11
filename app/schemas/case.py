@@ -73,6 +73,12 @@ class CaseDetailResponse(BaseModel):
     counterparty_evidence_complete: bool = Field(
         False, description="피고(상대방) 쪽 증거 제출 완료 여부"
     )
+    creator_rebuttal_complete: bool = Field(
+        False, description="원고(생성자) 쪽 반박 완료 여부"
+    )
+    counterparty_rebuttal_complete: bool = Field(
+        False, description="피고(상대방) 쪽 반박 완료 여부"
+    )
 
 
 class EvidenceCreate(BaseModel):
@@ -95,3 +101,42 @@ class EvidenceResponse(BaseModel):
     content: str | None = Field(None, description="내용 (text=본문, photo/chat=설명)")
     file_path: str | None = Field(None, description="파일 경로")
     created_at: datetime = Field(..., description="제출 시각")
+
+
+class RebuttalRequest(BaseModel):
+    """반박 제출/수정 요청."""
+
+    accepted: bool = Field(..., description="해당 증거 수용 여부")
+    rebuttal: str | None = Field(None, description="반박 내용 (선택)")
+
+
+class RebuttalResponse(BaseModel):
+    """반박 1건 응답."""
+
+    id: str = Field(..., description="반박 ID")
+    evidence_id: str = Field(..., description="대상 증거 ID")
+    rebutter_user_id: str = Field(..., description="반박 작성자 user id")
+    accepted: bool = Field(..., description="수용 여부")
+    rebuttal: str | None = Field(None, description="반박 내용")
+    created_at: datetime = Field(..., description="작성 시각")
+
+
+class JudgmentSubmitRequest(BaseModel):
+    """판단 등록 요청."""
+
+    judgment_content: str | None = Field(None, description="판단 요지")
+    fault_ratio_creator: int = Field(..., ge=0, le=100, description="원고 과실 비율 0~100")
+    fault_ratio_counterparty: int = Field(
+        ..., ge=0, le=100, description="피고 과실 비율 0~100"
+    )
+
+
+class CaseResultsResponse(BaseModel):
+    """사건 판단(결과) 응답."""
+
+    case_id: str = Field(..., description="사건 ID")
+    judgment_content: str | None = Field(None, description="판단 요지")
+    fault_ratio_creator: int | None = Field(None, description="원고 과실 비율 0~100")
+    fault_ratio_counterparty: int | None = Field(None, description="피고 과실 비율 0~100")
+    judged_at: datetime | None = Field(None, description="판단 시각")
+    status: str = Field(..., description="진행 상태 (judged 등)")

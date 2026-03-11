@@ -8,10 +8,13 @@ from app.schemas.case import (
     CaseDetailResponse,
     CaseListItem,
     CasePreviewResponse,
+    CaseResultsResponse,
     CreateCaseRequest,
     CreateCaseResponse,
     EvidenceResponse,
     JoinCaseRequest,
+    RebuttalRequest,
+    RebuttalResponse,
 )
 
 router = APIRouter(prefix="/judge", tags=["judge"])
@@ -166,8 +169,10 @@ def get_case_detail(
         my_role=my_role,
         created_at=row["created_at"],
         invite_token=row["invite_token"],
-        creator_evidence_complete=row["creator_evidence_complete"],
-        counterparty_evidence_complete=row["counterparty_evidence_complete"],
+        creator_evidence_complete=row.get("creator_evidence_complete", False),
+        counterparty_evidence_complete=row.get("counterparty_evidence_complete", False),
+        creator_rebuttal_complete=row.get("creator_rebuttal_complete", False),
+        counterparty_rebuttal_complete=row.get("counterparty_rebuttal_complete", False),
     )
 
 
@@ -445,16 +450,187 @@ def list_counterpart_evidence(
     return items
 
 
-@router.post("/judge/case/{case_id}/evidence/{evidence_id}/rebut")
+@router.post(
+    "/case/{case_id}/evidence/{evidence_id}/rebut",
+    response_model=RebuttalResponse,
+)
 def rebut_evidence(
     case_id: str,
     evidence_id: str,
+    body: RebuttalRequest,
+    current_user: dict = Depends(get_current_user),
+    access_token: str = Depends(get_access_token),
+) -> RebuttalResponse:
+    """상대 증거에 대한 반박 제출/수정. status=rebutting일 때만 가능."""
+
+    user_id = current_user.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User id not found")
+
+    supabase = get_supabase_for_user(access_token)
+    res = supabase.table("cases").select("*").eq("id", case_id).execute()
+    if not res.data or len(res.data) == 0:
+        raise HTTPException(status_code=404, detail="Case not found")
+    case_row = res.data[0]
+    if case_row["created_by"] != user_id and case_row.get("counterpart_id") != user_id:
+        raise HTTPException(status_code=403, detail="Not a participant")
+    if case_row.get("status") != "rebutting":
+        raise HTTPException(
+            status_code=400, detail="Case is not in rebutting phase"
+        )
+
+    other_user_id = (
+        case_row["created_by"]
+        if user_id == case_row["counterpart_id"]
+        else case_row["counterpart_id"]
+    )
+    ev = (
+        supabase.table("case_evidence")
+        .select("id, user_id")
+        .eq("id", evidence_id)
+        .eq("case_id", case_id)
+        .execute()
+    )
+    if not ev.data or len(ev.data) == 0:
+        raise HTTPException(status_code=404, detail="Evidence not found")
+    if ev.data[0]["user_id"] != other_user_id:
+        raise HTTPException(
+            status_code=403, detail="Can only rebut counterpart evidence"
+        )
+
+    rebuttal_text = (body.rebuttal or "").strip() or None
+    existing = (
+        supabase.table("case_evidence_rebuttal")
+        .select("id, accepted, rebuttal, created_at")
+        .eq("evidence_id", evidence_id)
+        .eq("rebutter_user_id", user_id)
+        .execute()
+    )
+    if existing.data and len(existing.data) > 0:
+        row = existing.data[0]
+        supabase.table("case_evidence_rebuttal").update(
+            {"accepted": body.accepted, "rebuttal": rebuttal_text}
+        ).eq("id", row["id"]).execute()
+        return RebuttalResponse(
+            id=row["id"],
+            evidence_id=evidence_id,
+            rebutter_user_id=user_id,
+            accepted=body.accepted,
+            rebuttal=rebuttal_text,
+            created_at=row["created_at"],
+        )
+    ins = (
+        supabase.table("case_evidence_rebuttal")
+        .insert(
+            {
+                "evidence_id": evidence_id,
+                "rebutter_user_id": user_id,
+                "accepted": body.accepted,
+                "rebuttal": rebuttal_text,
+            }
+        )
+        .execute()
+    )
+    if not ins.data or len(ins.data) == 0:
+        raise HTTPException(status_code=500, detail="Failed to add rebuttal")
+    created = ins.data[0]
+    return RebuttalResponse(
+        id=created["id"],
+        evidence_id=evidence_id,
+        rebutter_user_id=user_id,
+        accepted=created["accepted"],
+        rebuttal=created.get("rebuttal"),
+        created_at=created["created_at"],
+    )
+
+
+@router.post("/case/{case_id}/rebuttal/complete")
+def complete_rebuttal(
+    case_id: str,
     current_user: dict = Depends(get_current_user),
     access_token: str = Depends(get_access_token),
 ):
-    pass
+    """내 반박 완료 선언. 양측 모두 완료 시 status=judging, 이후 AI 판단 요청 예정."""
+
+    user_id = current_user.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User id not found")
+
+    supabase = get_supabase_for_user(access_token)
+    res = supabase.table("cases").select("*").eq("id", case_id).execute()
+    if not res.data or len(res.data) == 0:
+        raise HTTPException(status_code=404, detail="Case not found")
+    case_row = res.data[0]
+    if case_row["created_by"] != user_id and case_row.get("counterpart_id") != user_id:
+        raise HTTPException(status_code=403, detail="Not a participant")
+    if case_row.get("status") != "rebutting":
+        raise HTTPException(
+            status_code=400, detail="Case is not in rebutting phase"
+        )
+
+    my_role = "creator" if case_row["created_by"] == user_id else "counterparty"
+    if my_role == "creator":
+        supabase.table("cases").update({"creator_rebuttal_complete": True}).eq(
+            "id", case_id
+        ).execute()
+    else:
+        supabase.table("cases").update({"counterparty_rebuttal_complete": True}).eq(
+            "id", case_id
+        ).execute()
+
+    updated = (
+        supabase.table("cases")
+        .select("creator_rebuttal_complete, counterparty_rebuttal_complete")
+        .eq("id", case_id)
+        .execute()
+    )
+    if updated.data and len(updated.data) > 0:
+        r = updated.data[0]
+        if r.get("creator_rebuttal_complete") and r.get(
+            "counterparty_rebuttal_complete"
+        ):
+            supabase.table("cases").update({"status": "judging"}).eq(
+                "id", case_id
+            ).execute()
+            # TODO: status=judging 전환 후 AI에게 판단 요청
+            # - 사건 정보(cases), 양측 증거(case_evidence), 반박(case_evidence_rebuttal) 조회
+            # - AI API 호출하여 judgment_content, fault_ratio_creator, fault_ratio_counterparty 생성
+            # - cases 업데이트: judgment_content, fault_ratio_*, judged_at, status='judged'
+            pass
+
+    return
 
 
-@router.post("/cases/{case_id}/results")
-def get_case_results():
-    pass
+@router.get(
+    "/case/{case_id}/results",
+    response_model=CaseResultsResponse,
+)
+def get_case_results(
+    case_id: str,
+    current_user: dict = Depends(get_current_user),
+    access_token: str = Depends(get_access_token),
+) -> CaseResultsResponse:
+    """사건 판단(결과) 조회."""
+
+    user_id = current_user.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User id not found")
+
+    supabase = get_supabase_for_user(access_token)
+    res = supabase.table("cases").select("*").eq("id", case_id).execute()
+    if not res.data or len(res.data) == 0:
+        raise HTTPException(status_code=404, detail="Case not found")
+    row = res.data[0]
+    if row["created_by"] != user_id and row.get("counterpart_id") != user_id:
+        raise HTTPException(status_code=403, detail="Not a participant")
+
+    return CaseResultsResponse(
+        case_id=row["id"],
+        judgment_content=row.get("judgment_content"),
+        fault_ratio_creator=row.get("fault_ratio_creator"),
+        fault_ratio_counterparty=row.get("fault_ratio_counterparty"),
+        judged_at=row.get("judged_at"),
+        status=row["status"],
+    )
+
+
