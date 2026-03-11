@@ -298,7 +298,7 @@ def complete_evidence(
     current_user: dict = Depends(get_current_user),
     access_token: str = Depends(get_access_token),
 ):
-    """내 증거 제출 완료 선언. 양측 모두 완료 시 status=reviewing."""
+    """내 증거 제출 완료 선언. 양측 모두 완료 시 status=rebutting"""
 
     user_id = current_user.get("sub")
     if not user_id:
@@ -326,7 +326,7 @@ def complete_evidence(
             "id", case_id
         ).execute()
 
-    # 양측 모두 완료였는지 확인 후 status=reviewing
+    # 양측 모두 완료였는지 확인 후 status=rebutting
     updated = (
         supabase.table("cases")
         .select("creator_evidence_complete, counterparty_evidence_complete")
@@ -338,7 +338,7 @@ def complete_evidence(
         if r.get("creator_evidence_complete") and r.get(
             "counterparty_evidence_complete"
         ):
-            supabase.table("cases").update({"status": "reviewing"}).eq(
+            supabase.table("cases").update({"status": "rebutting"}).eq(
                 "id", case_id
             ).execute()
 
@@ -445,8 +445,8 @@ def list_counterpart_evidence(
     return items
 
 
-@router.post("/judge/case/{case_id}/evidence/{evidence_id}/review")
-def review_evidence(
+@router.post("/judge/case/{case_id}/evidence/{evidence_id}/rebut")
+def rebut_evidence(
     case_id: str,
     evidence_id: str,
     current_user: dict = Depends(get_current_user),

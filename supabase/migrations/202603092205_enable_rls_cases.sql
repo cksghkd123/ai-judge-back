@@ -1,4 +1,4 @@
--- RLS 활성화: public.cases, case_evidence, case_evidence_review
+-- RLS 활성화: public.cases, case_evidence, case_evidence_rebuttal
 -- PostgREST로 노출된 테이블은 RLS 권장. 백엔드는 service_role로 RLS 우회.
 
 -- 1. cases
@@ -65,39 +65,39 @@ CREATE POLICY "case_evidence_update_own_case"
     )
   );
 
--- 3. case_evidence_review
-ALTER TABLE public.case_evidence_review ENABLE ROW LEVEL SECURITY;
+-- 3. case_evidence_rebuttal
+ALTER TABLE public.case_evidence_rebuttal ENABLE ROW LEVEL SECURITY;
 
--- 본인이 참여한 사건의 증거에 대한 리뷰만 조회
-CREATE POLICY "case_evidence_review_select_own_case"
-  ON public.case_evidence_review FOR SELECT
+-- 본인이 참여한 사건의 증거에 대한 반박만 조회
+CREATE POLICY "case_evidence_rebuttal_select_own_case"
+  ON public.case_evidence_rebuttal FOR SELECT
   TO authenticated
   USING (
     EXISTS (
       SELECT 1 FROM public.case_evidence ce
       JOIN public.cases c ON c.id = ce.case_id
-      WHERE ce.id = case_evidence_review.evidence_id
+      WHERE ce.id = case_evidence_rebuttal.evidence_id
         AND (c.created_by = auth.uid() OR c.counterpart_id = auth.uid())
     )
   );
 
--- 리뷰어가 본인이고, 해당 사건 참여자일 때만 INSERT
-CREATE POLICY "case_evidence_review_insert_reviewer"
-  ON public.case_evidence_review FOR INSERT
+-- 반박 작성자가 본인이고, 해당 사건 참여자일 때만 INSERT
+CREATE POLICY "case_evidence_rebuttal_insert_rebutter"
+  ON public.case_evidence_rebuttal FOR INSERT
   TO authenticated
   WITH CHECK (
-    reviewer_user_id = auth.uid()
+    rebutter_user_id = auth.uid()
     AND EXISTS (
       SELECT 1 FROM public.case_evidence ce
       JOIN public.cases c ON c.id = ce.case_id
-      WHERE ce.id = case_evidence_review.evidence_id
+      WHERE ce.id = case_evidence_rebuttal.evidence_id
         AND (c.created_by = auth.uid() OR c.counterpart_id = auth.uid())
     )
   );
 
--- 리뷰어가 본인인 경우만 UPDATE
-CREATE POLICY "case_evidence_review_update_reviewer"
-  ON public.case_evidence_review FOR UPDATE
+-- 반박 작성자가 본인인 경우만 UPDATE
+CREATE POLICY "case_evidence_rebuttal_update_rebutter"
+  ON public.case_evidence_rebuttal FOR UPDATE
   TO authenticated
-  USING (reviewer_user_id = auth.uid())
-  WITH CHECK (reviewer_user_id = auth.uid());
+  USING (rebutter_user_id = auth.uid())
+  WITH CHECK (rebutter_user_id = auth.uid());

@@ -42,16 +42,16 @@ CREATE TABLE IF NOT EXISTS case_evidence (
 CREATE INDEX IF NOT EXISTS idx_case_evidence_case_id ON case_evidence(case_id);
 CREATE INDEX IF NOT EXISTS idx_case_evidence_user_id ON case_evidence(user_id);
 
--- 3. case_evidence_review
-CREATE TABLE IF NOT EXISTS case_evidence_review (
+-- 3. case_evidence_rebuttal (상대 증거에 대한 반박)
+CREATE TABLE IF NOT EXISTS case_evidence_rebuttal (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   evidence_id uuid NOT NULL REFERENCES case_evidence(id) ON DELETE CASCADE,
-  reviewer_user_id uuid NOT NULL,
+  rebutter_user_id uuid NOT NULL,
   accepted boolean NOT NULL,
   rebuttal text,
   created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE(evidence_id, reviewer_user_id)
+  UNIQUE(evidence_id, rebutter_user_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_case_evidence_review_evidence_id ON case_evidence_review(evidence_id);
-CREATE INDEX IF NOT EXISTS idx_case_evidence_review_reviewer ON case_evidence_review(reviewer_user_id);
+CREATE INDEX IF NOT EXISTS idx_case_evidence_rebuttal_evidence_id ON case_evidence_rebuttal(evidence_id);
+CREATE INDEX IF NOT EXISTS idx_case_evidence_rebuttal_rebutter ON case_evidence_rebuttal(rebutter_user_id);
