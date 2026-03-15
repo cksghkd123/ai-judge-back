@@ -11,6 +11,10 @@ class CreateCaseRequest(BaseModel):
     title: str = Field(..., min_length=1, description="사건 제목")
     description: str = Field(..., min_length=1, description="사건 설명")
     issue: str = Field(..., min_length=1, description="논점")
+    judge_agent_id: str = Field(
+        default="default",
+        description="판단 에이전트 ID. 미입력 시 default.",
+    )
 
 
 class CreateCaseResponse(BaseModel):
@@ -24,6 +28,7 @@ class CreateCaseResponse(BaseModel):
     created_by: str = Field(..., description="생성자 user id")
     created_at: datetime = Field(..., description="생성 시각")
     invite_token: str = Field(..., description="초대 토큰")
+    judge_agent_id: str = Field(..., description="선택된 판단 에이전트 ID")
 
 
 class JoinCaseRequest(BaseModel):
@@ -79,6 +84,9 @@ class CaseDetailResponse(BaseModel):
     counterparty_rebuttal_complete: bool = Field(
         False, description="피고(상대방) 쪽 반박 완료 여부"
     )
+    judge_agent_id: str = Field(
+        "default", description="이 사건에 사용되는 판단 에이전트 ID"
+    )
 
 
 class EvidenceCreate(BaseModel):
@@ -125,7 +133,9 @@ class JudgmentSubmitRequest(BaseModel):
     """판단 등록 요청."""
 
     judgment_content: str | None = Field(None, description="판단 요지")
-    fault_ratio_creator: int = Field(..., ge=0, le=100, description="원고 과실 비율 0~100")
+    fault_ratio_creator: int = Field(
+        ..., ge=0, le=100, description="원고 과실 비율 0~100"
+    )
     fault_ratio_counterparty: int = Field(
         ..., ge=0, le=100, description="피고 과실 비율 0~100"
     )
@@ -137,6 +147,8 @@ class CaseResultsResponse(BaseModel):
     case_id: str = Field(..., description="사건 ID")
     judgment_content: str | None = Field(None, description="판단 요지")
     fault_ratio_creator: int | None = Field(None, description="원고 과실 비율 0~100")
-    fault_ratio_counterparty: int | None = Field(None, description="피고 과실 비율 0~100")
+    fault_ratio_counterparty: int | None = Field(
+        None, description="피고 과실 비율 0~100"
+    )
     judged_at: datetime | None = Field(None, description="판단 시각")
     status: str = Field(..., description="진행 상태 (judged 등)")

@@ -1,9 +1,19 @@
 import uuid
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+)
 
 from app.api.auth import get_access_token, get_current_user
 from app.clients.supabase import get_supabase, get_supabase_for_user
 from app.config import settings
+from app.judge.agents import is_valid_agent_id, list_agents
+from app.judge.ai import request_judgment
 from app.schemas.case import (
     CaseDetailResponse,
     CaseListItem,
@@ -20,6 +30,13 @@ from app.schemas.case import (
 router = APIRouter(prefix="/judge", tags=["judge"])
 
 
+@router.get("/agents")
+def get_judge_agents() -> list[dict[str, str]]:
+    """판단 에이전트(자아) 목록. 사건 생성 시 선택용."""
+
+    return list_agents()
+
+
 @router.post("/case", response_model=CreateCaseResponse)
 def create_case(
     body: CreateCaseRequest,
@@ -32,6 +49,10 @@ def create_case(
     if not user_id:
         raise HTTPException(status_code=401, detail="User id not found")
 
+    agent_id = body.judge_agent_id.strip()
+    if not is_valid_agent_id(body.judge_agent_id):
+        agent_id = "default"
+
     supabase = get_supabase_for_user(access_token)
     row = {
         "created_by": user_id,
@@ -40,6 +61,7 @@ def create_case(
         "issue": body.issue,
         "status": "pending",
         "invite_token": str(uuid.uuid4()),
+        "judge_agent_id": agent_id,
     }
     response = supabase.table("cases").insert(row).execute()
 
@@ -56,6 +78,7 @@ def create_case(
         created_by=created["created_by"],
         created_at=created["created_at"],
         invite_token=created["invite_token"],
+        judge_agent_id=created["judge_agent_id"],
     )
 
 
@@ -173,6 +196,7 @@ def get_case_detail(
         counterparty_evidence_complete=row.get("counterparty_evidence_complete", False),
         creator_rebuttal_complete=row.get("creator_rebuttal_complete", False),
         counterparty_rebuttal_complete=row.get("counterparty_rebuttal_complete", False),
+        judge_agent_id=row["judge_agent_id"],
     )
 
 
@@ -475,9 +499,7 @@ def rebut_evidence(
     if case_row["created_by"] != user_id and case_row.get("counterpart_id") != user_id:
         raise HTTPException(status_code=403, detail="Not a participant")
     if case_row.get("status") != "rebutting":
-        raise HTTPException(
-            status_code=400, detail="Case is not in rebutting phase"
-        )
+        raise HTTPException(status_code=400, detail="Case is not in rebutting phase")
 
     other_user_id = (
         case_row["created_by"]
@@ -547,10 +569,11 @@ def rebut_evidence(
 @router.post("/case/{case_id}/rebuttal/complete")
 def complete_rebuttal(
     case_id: str,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
     access_token: str = Depends(get_access_token),
 ):
-    """내 반박 완료 선언. 양측 모두 완료 시 status=judging, 이후 AI 판단 요청 예정."""
+    """내 반박 완료 선언. 양측 모두 완료 시 status=judging, 이후 AI 판단 비동기 요청."""
 
     user_id = current_user.get("sub")
     if not user_id:
@@ -564,9 +587,7 @@ def complete_rebuttal(
     if case_row["created_by"] != user_id and case_row.get("counterpart_id") != user_id:
         raise HTTPException(status_code=403, detail="Not a participant")
     if case_row.get("status") != "rebutting":
-        raise HTTPException(
-            status_code=400, detail="Case is not in rebutting phase"
-        )
+        raise HTTPException(status_code=400, detail="Case is not in rebutting phase")
 
     my_role = "creator" if case_row["created_by"] == user_id else "counterparty"
     if my_role == "creator":
@@ -592,11 +613,7 @@ def complete_rebuttal(
             supabase.table("cases").update({"status": "judging"}).eq(
                 "id", case_id
             ).execute()
-            # TODO: status=judging 전환 후 AI에게 판단 요청
-            # - 사건 정보(cases), 양측 증거(case_evidence), 반박(case_evidence_rebuttal) 조회
-            # - AI API 호출하여 judgment_content, fault_ratio_creator, fault_ratio_counterparty 생성
-            # - cases 업데이트: judgment_content, fault_ratio_*, judged_at, status='judged'
-            pass
+            background_tasks.add_task(request_judgment, case_id)
 
     return
 
@@ -632,5 +649,3 @@ def get_case_results(
         judged_at=row.get("judged_at"),
         status=row["status"],
     )
-
-

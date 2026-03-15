@@ -22,5 +22,10 @@ class Settings(BaseSettings):
     supabase_storage_bucket: str = ""
     """증거 파일 업로드용 Storage 버킷 이름."""
 
+    openai_api_key: str = ""
+    """OpenAI API 키. 비어 있으면 판단 요청 시 AI 호출을 스킵합니다."""
+    openai_model: str = "gpt-4o-mini"
+    """판단 요청에 사용할 채팅 모델."""
+
 
 settings = Settings()
