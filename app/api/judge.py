@@ -49,8 +49,8 @@ def create_case(
     if not user_id:
         raise HTTPException(status_code=401, detail="User id not found")
 
-    agent_id = body.judge_agent_id.strip()
-    if not is_valid_agent_id(body.judge_agent_id):
+    agent_id = (body.judge_agent_id or "").strip() or "default"
+    if not is_valid_agent_id(agent_id):
         agent_id = "default"
 
     supabase = get_supabase_for_user(access_token)

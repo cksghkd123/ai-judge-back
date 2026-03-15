@@ -7,8 +7,8 @@ AI 판단용 프롬프트·응답 형식 설정.
 # 응답 형식: AI가 반드시 이 키로 JSON을 반환해야 함
 # ---------------------------------------------------------------------------
 RESPONSE_KEYS = (
-    "judgment_content",       # 판단 요지 (str)
-    "fault_ratio_creator",    # 원고 과실 비율 0~100 (int)
+    "judgment_content",  # 판단 요지 (str)
+    "fault_ratio_creator",  # 원고 과실 비율 0~100 (int)
     "fault_ratio_counterparty",  # 피고 과실 비율 0~100 (int)
 )
 
@@ -21,9 +21,12 @@ OUTPUT_INSTRUCTION = """
 fault_ratio_creator + fault_ratio_counterparty = 100 이어야 합니다."""
 
 
-def get_system_prompt_for_agent(persona: str) -> str:
-    """에이전트의 자아(persona) + 공통 출력 지시를 합쳐 시스템 프롬프트 반환."""
-    return (persona or "").strip() + OUTPUT_INSTRUCTION
+def get_system_prompt_for_agent(persona: str, style: str | None = None) -> str:
+    """에이전트의 자아(persona) + 말투(style) + 공통 출력 지시를 합쳐 시스템 프롬프트 반환."""
+    parts = [(persona or "").strip()]
+    if (style or "").strip():
+        parts.append(f"말투: {(style or '').strip()}")
+    return "\n\n".join(parts) + OUTPUT_INSTRUCTION
 
 
 # 레거시: 단일 시스템 프롬프트 (기본 에이전트와 동일)
@@ -56,15 +59,23 @@ def build_user_prompt(context: dict) -> str:
         "## 원고(생성자) 측 증거",
     ]
     for i, e in enumerate(creator_evidences, 1):
-        lines.append(f"  {i}. type={e.get('type')}, content={e.get('content') or '(없음)'}, file_path={e.get('file_path') or '(없음)'}")
+        lines.append(
+            f"  {i}. type={e.get('type')}, content={e.get('content') or '(없음)'}, file_path={e.get('file_path') or '(없음)'}"
+        )
     lines.append("")
     lines.append("## 피고(상대방) 측 증거")
     for i, e in enumerate(counterparty_evidences, 1):
-        lines.append(f"  {i}. type={e.get('type')}, content={e.get('content') or '(없음)'}, file_path={e.get('file_path') or '(없음)'}")
+        lines.append(
+            f"  {i}. type={e.get('type')}, content={e.get('content') or '(없음)'}, file_path={e.get('file_path') or '(없음)'}"
+        )
     lines.append("")
     lines.append("## 반박 (증거별 상대방 의견)")
     for r in rebuttals:
-        lines.append(f"  evidence_id={r.get('evidence_id')}, accepted={r.get('accepted')}, rebuttal={r.get('rebuttal') or '(없음)'}")
+        lines.append(
+            f"  evidence_id={r.get('evidence_id')}, accepted={r.get('accepted')}, rebuttal={r.get('rebuttal') or '(없음)'}"
+        )
     lines.append("")
-    lines.append("위 사건에 대해 판단 요지(judgment_content)와 원고·피고 과실 비율(fault_ratio_creator, fault_ratio_counterparty, 합 100)을 JSON으로만 답하세요.")
+    lines.append(
+        "위 사건에 대해 판단 요지(judgment_content)와 원고·피고 과실 비율(fault_ratio_creator, fault_ratio_counterparty, 합 100)을 JSON으로만 답하세요."
+    )
     return "\n".join(lines)
