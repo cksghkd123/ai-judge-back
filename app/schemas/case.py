@@ -11,6 +11,12 @@ class CreateCaseRequest(BaseModel):
     title: str = Field(..., min_length=1, description="사건 제목")
     description: str = Field(..., min_length=1, description="사건 설명")
     issue: str = Field(..., min_length=1, description="논점")
+    claimant_name: str = Field(..., min_length=1, description="청구인 이름")
+    claimant_address: str = Field(..., min_length=1, description="청구인 주소")
+    claimant_jobs: list[str] = Field(default_factory=list, description="청구인 직업")
+    claimant_profile_image: str | None = Field(
+        None, description="청구인(claimant) 프로필 이미지 URL"
+    )
     judge_agent_id: str = Field(
         default="default",
         description="판단 에이전트 ID. 미입력 시 default.",
@@ -34,6 +40,12 @@ class CreateCaseResponse(BaseModel):
     issue: str = Field(..., description="논점")
     status: str = Field(..., description="진행 상태")
     claimant_id: str = Field(..., description="청구인(claimant) user id")
+    claimant_name: str = Field(..., description="청구인(claimant) 이름")
+    claimant_address: str = Field(..., description="청구인(claimant) 주소")
+    claimant_jobs: list[str] = Field(..., description="청구인(claimant) 직업")
+    claimant_profile_image: str | None = Field(
+        None, description="청구인(claimant) 프로필 이미지 URL"
+    )
     created_at: datetime = Field(..., description="생성 시각")
     invite_token: str = Field(..., description="초대 토큰")
     judge_agent_id: str = Field(..., description="선택된 판단 에이전트 ID")
@@ -75,22 +87,28 @@ class CaseDetailResponse(BaseModel):
     description: str = Field(..., description="사건 설명")
     issue: str = Field(..., description="논점")
     status: str = Field(..., description="진행 상태")
-    claimant_id: str = Field(..., description="청구인(claimant) user id")
-    respondent_id: str | None = Field(None, description="응답인(respondent) user id")
+    claimant_id: str = Field(..., description="청구인 user id")
+    claimant_name: str = Field(..., description="청구인 이름")
+    claimant_address: str = Field(..., description="청구인 주소")
+    claimant_jobs: list[str] = Field(..., description="청구인 직업")
+    claimant_profile_image: str | None = Field(
+        None, description="청구인 프로필 이미지 URL"
+    )
+    respondent_id: str | None = Field(None, description="응답인 user id")
     my_role: str = Field(..., description="claimant | respondent")
     created_at: datetime = Field(..., description="생성 시각")
     invite_token: str = Field(..., description="초대 토큰")
     claimant_evidence_complete: bool = Field(
-        False, description="청구인(claimant) 쪽 증거 제출 완료 여부"
+        False, description="청구인 쪽 증거 제출 완료 여부"
     )
     respondent_evidence_complete: bool = Field(
-        False, description="응답인(respondent) 쪽 증거 제출 완료 여부"
+        False, description="응답인 쪽 증거 제출 완료 여부"
     )
     claimant_rebuttal_complete: bool = Field(
-        False, description="청구인(claimant) 쪽 반박 완료 여부"
+        False, description="청구인 쪽 반박 완료 여부"
     )
     respondent_rebuttal_complete: bool = Field(
-        False, description="응답인(respondent) 쪽 반박 완료 여부"
+        False, description="응답인 쪽 반박 완료 여부"
     )
     judge_agent_id: str = Field(
         "default", description="이 사건에 사용되는 판단 에이전트 ID"
