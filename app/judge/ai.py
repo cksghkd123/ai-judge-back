@@ -27,10 +27,10 @@ def _gather_context(case_id: str) -> dict:
     if not case_res.data or len(case_res.data) == 0:
         raise ValueError(f"Case not found: {case_id}")
     case_row = case_res.data[0]
-    creator_id = case_row["created_by"]
-    counterpart_id = case_row.get("counterpart_id")
-    if not counterpart_id:
-        raise ValueError("Case has no counterpart")
+    claimant_id = case_row["claimant_id"]
+    respondent_id = case_row.get("respondent_id")
+    if not respondent_id:
+        raise ValueError("Case has no respondent")
 
     ev_res = (
         supabase.table("case_evidence")
@@ -40,8 +40,8 @@ def _gather_context(case_id: str) -> dict:
         .execute()
     )
     evidences = ev_res.data or []
-    creator_evidences = [e for e in evidences if str(e["user_id"]) == str(creator_id)]
-    counterparty_evidences = [e for e in evidences if str(e["user_id"]) == str(counterpart_id)]
+    claimant_evidences = [e for e in evidences if str(e["user_id"]) == str(claimant_id)]
+    respondent_evidences = [e for e in evidences if str(e["user_id"]) == str(respondent_id)]
     evidence_ids = [e["id"] for e in evidences]
 
     rebuttals = []
@@ -59,12 +59,12 @@ def _gather_context(case_id: str) -> dict:
             "title": case_row.get("title"),
             "description": case_row.get("description"),
             "issue": case_row.get("issue"),
-            "created_by": creator_id,
-            "counterpart_id": counterpart_id,
+            "claimant_id": claimant_id,
+            "respondent_id": respondent_id,
             "judge_agent_id": case_row.get("judge_agent_id") or "default",
         },
-        "creator_evidences": creator_evidences,
-        "counterparty_evidences": counterparty_evidences,
+        "claimant_evidences": claimant_evidences,
+        "respondent_evidences": respondent_evidences,
         "rebuttals": rebuttals,
     }
 
@@ -118,17 +118,17 @@ async def request_judgment(case_id: str) -> None:
 
     data = _parse_ai_response(content)
     judgment_content = data.get("judgment_content") or ""
-    fault_creator = data.get("fault_ratio_creator", 0)
-    fault_counterparty = data.get("fault_ratio_counterparty", 0)
-    fault_creator = max(0, min(100, int(fault_creator)))
-    fault_counterparty = max(0, min(100, int(fault_counterparty)))
+    fault_claimant = data.get("fault_ratio_claimant", 0)
+    fault_respondent = data.get("fault_ratio_respondent", 0)
+    fault_claimant = max(0, min(100, int(fault_claimant)))
+    fault_respondent = max(0, min(100, int(fault_respondent)))
 
     supabase = get_supabase()
     supabase.table("cases").update(
         {
             "judgment_content": judgment_content,
-            "fault_ratio_creator": fault_creator,
-            "fault_ratio_counterparty": fault_counterparty,
+            "fault_ratio_claimant": fault_claimant,
+            "fault_ratio_respondent": fault_respondent,
             "judged_at": datetime.now(tz=timezone.utc).isoformat(),
             "status": "completed",
         }

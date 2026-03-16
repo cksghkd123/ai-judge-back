@@ -33,7 +33,7 @@ class CreateCaseResponse(BaseModel):
     description: str = Field(..., description="사건 설명")
     issue: str = Field(..., description="논점")
     status: str = Field(..., description="진행 상태")
-    created_by: str = Field(..., description="생성자 user id")
+    claimant_id: str = Field(..., description="청구인(claimant) user id")
     created_at: datetime = Field(..., description="생성 시각")
     invite_token: str = Field(..., description="초대 토큰")
     judge_agent_id: str = Field(..., description="선택된 판단 에이전트 ID")
@@ -53,7 +53,7 @@ class CaseListItem(BaseModel):
     title: str = Field(..., description="사건 제목")
     status: str = Field(..., description="진행 상태")
     created_at: datetime = Field(..., description="생성 시각")
-    my_role: str = Field(..., description="creator | counterpart")
+    my_role: str = Field(..., description="claimant | respondent")
 
 
 class CasePreviewResponse(BaseModel):
@@ -75,22 +75,22 @@ class CaseDetailResponse(BaseModel):
     description: str = Field(..., description="사건 설명")
     issue: str = Field(..., description="논점")
     status: str = Field(..., description="진행 상태")
-    created_by: str = Field(..., description="생성자 user id")
-    counterpart_id: str | None = Field(None, description="상대방 user id")
-    my_role: str = Field(..., description="creator | counterpart")
+    claimant_id: str = Field(..., description="청구인(claimant) user id")
+    respondent_id: str | None = Field(None, description="응답인(respondent) user id")
+    my_role: str = Field(..., description="claimant | respondent")
     created_at: datetime = Field(..., description="생성 시각")
     invite_token: str = Field(..., description="초대 토큰")
-    creator_evidence_complete: bool = Field(
-        False, description="원고(생성자) 쪽 증거 제출 완료 여부"
+    claimant_evidence_complete: bool = Field(
+        False, description="청구인(claimant) 쪽 증거 제출 완료 여부"
     )
-    counterparty_evidence_complete: bool = Field(
-        False, description="피고(상대방) 쪽 증거 제출 완료 여부"
+    respondent_evidence_complete: bool = Field(
+        False, description="응답인(respondent) 쪽 증거 제출 완료 여부"
     )
-    creator_rebuttal_complete: bool = Field(
-        False, description="원고(생성자) 쪽 반박 완료 여부"
+    claimant_rebuttal_complete: bool = Field(
+        False, description="청구인(claimant) 쪽 반박 완료 여부"
     )
-    counterparty_rebuttal_complete: bool = Field(
-        False, description="피고(상대방) 쪽 반박 완료 여부"
+    respondent_rebuttal_complete: bool = Field(
+        False, description="응답인(respondent) 쪽 반박 완료 여부"
     )
     judge_agent_id: str = Field(
         "default", description="이 사건에 사용되는 판단 에이전트 ID"
@@ -141,11 +141,11 @@ class JudgmentSubmitRequest(BaseModel):
     """판단 등록 요청."""
 
     judgment_content: str | None = Field(None, description="판단 요지")
-    fault_ratio_creator: int = Field(
-        ..., ge=0, le=100, description="원고 과실 비율 0~100"
+    fault_ratio_claimant: int = Field(
+        ..., ge=0, le=100, description="청구인(claimant) 과실 비율 0~100"
     )
-    fault_ratio_counterparty: int = Field(
-        ..., ge=0, le=100, description="피고 과실 비율 0~100"
+    fault_ratio_respondent: int = Field(
+        ..., ge=0, le=100, description="응답인(respondent) 과실 비율 0~100"
     )
 
 
@@ -154,9 +154,11 @@ class CaseResultsResponse(BaseModel):
 
     case_id: str = Field(..., description="사건 ID")
     judgment_content: str | None = Field(None, description="판단 요지")
-    fault_ratio_creator: int | None = Field(None, description="원고 과실 비율 0~100")
-    fault_ratio_counterparty: int | None = Field(
-        None, description="피고 과실 비율 0~100"
+    fault_ratio_claimant: int | None = Field(
+        None, description="청구인(claimant) 과실 비율 0~100"
+    )
+    fault_ratio_respondent: int | None = Field(
+        None, description="응답인(respondent) 과실 비율 0~100"
     )
     judged_at: datetime | None = Field(None, description="판단 시각")
     status: str = Field(..., description="진행 상태 (judged 등)")

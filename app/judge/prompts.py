@@ -8,8 +8,8 @@ AI 판단용 프롬프트·응답 형식 설정.
 # ---------------------------------------------------------------------------
 RESPONSE_KEYS = (
     "judgment_content",  # 판단 요지 (str)
-    "fault_ratio_creator",  # 원고 과실 비율 0~100 (int)
-    "fault_ratio_counterparty",  # 피고 과실 비율 0~100 (int)
+    "fault_ratio_claimant",  # 청구인 과실 비율 0~100 (int)
+    "fault_ratio_respondent",  # 응답인 과실 비율 0~100 (int)
 )
 
 # ---------------------------------------------------------------------------
@@ -17,8 +17,8 @@ RESPONSE_KEYS = (
 # ---------------------------------------------------------------------------
 OUTPUT_INSTRUCTION = """
 응답은 반드시 JSON 한 덩어리만 출력하세요. 다른 설명은 붙이지 마세요.
-키: judgment_content(판단 요지, 문자열), fault_ratio_creator(원고 과실 비율 0~100 정수), fault_ratio_counterparty(피고 과실 비율 0~100 정수).
-fault_ratio_creator + fault_ratio_counterparty = 100 이어야 합니다."""
+키: judgment_content(판단 요지, 문자열), fault_ratio_claimant(청구인 과실 비율 0~100 정수), fault_ratio_respondent(응답인 과실 비율 0~100 정수).
+fault_ratio_claimant + fault_ratio_respondent = 100 이어야 합니다."""
 
 
 def get_system_prompt_for_agent(persona: str, style: str | None = None) -> str:
@@ -39,15 +39,15 @@ def build_user_prompt(context: dict) -> str:
     """
     사건·증거·반박 정보로 사용자 프롬프트 문자열 생성.
     context: {
-        "case": { "title", "description", "issue", "created_by", "counterpart_id" },
-        "creator_evidences": [ { "type", "content", "file_path" }, ... ],
-        "counterparty_evidences": [ ... ],
+        "case": { "title", "description", "issue", "claimant_id", "respondent_id" },
+        "claimant_evidences": [ { "type", "content", "file_path" }, ... ],
+        "respondent_evidences": [ ... ],
         "rebuttals": [ { "evidence_id", "rebutter_user_id", "accepted", "rebuttal" }, ... ]
     }
     """
     case = context.get("case") or {}
-    creator_evidences = context.get("creator_evidences") or []
-    counterparty_evidences = context.get("counterparty_evidences") or []
+    claimant_evidences = context.get("claimant_evidences") or []
+    respondent_evidences = context.get("respondent_evidences") or []
     rebuttals = context.get("rebuttals") or []
 
     lines = [
@@ -56,15 +56,15 @@ def build_user_prompt(context: dict) -> str:
         f"설명: {case.get('description', '')}",
         f"논점: {case.get('issue', '')}",
         "",
-        "## 원고(생성자) 측 증거",
+        "## 청구인(claimant) 측 증거",
     ]
-    for i, e in enumerate(creator_evidences, 1):
+    for i, e in enumerate(claimant_evidences, 1):
         lines.append(
             f"  {i}. type={e.get('type')}, content={e.get('content') or '(없음)'}, file_path={e.get('file_path') or '(없음)'}"
         )
     lines.append("")
-    lines.append("## 피고(상대방) 측 증거")
-    for i, e in enumerate(counterparty_evidences, 1):
+    lines.append("## 응답인(respondent) 측 증거")
+    for i, e in enumerate(respondent_evidences, 1):
         lines.append(
             f"  {i}. type={e.get('type')}, content={e.get('content') or '(없음)'}, file_path={e.get('file_path') or '(없음)'}"
         )
@@ -76,6 +76,6 @@ def build_user_prompt(context: dict) -> str:
         )
     lines.append("")
     lines.append(
-        "위 사건에 대해 판단 요지(judgment_content)와 원고·피고 과실 비율(fault_ratio_creator, fault_ratio_counterparty, 합 100)을 JSON으로만 답하세요."
+        "위 사건에 대해 판단 요지(judgment_content)와 청구인·응답인 과실 비율(fault_ratio_claimant, fault_ratio_respondent, 합 100)을 JSON으로만 답하세요."
     )
     return "\n".join(lines)

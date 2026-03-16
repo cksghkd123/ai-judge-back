@@ -56,7 +56,7 @@ def create_case(
 
     supabase = get_supabase_for_user(access_token)
     row = {
-        "created_by": user_id,
+        "claimant_id": user_id,
         "title": body.title,
         "description": body.description,
         "issue": body.issue,
@@ -76,7 +76,7 @@ def create_case(
         description=created["description"],
         issue=created["issue"],
         status=created["status"],
-        created_by=created["created_by"],
+        claimant_id=created["claimant_id"],
         created_at=created["created_at"],
         invite_token=created["invite_token"],
         judge_agent_id=created["judge_agent_id"],
@@ -108,15 +108,15 @@ def join_case(
     if case["status"] != "pending":
         raise HTTPException(status_code=400, detail="Case is not pending")
 
-    if case.get("counterpart_id") is not None:
-        raise HTTPException(status_code=409, detail="Case already has a counterpart")
+    if case.get("respondent_id") is not None:
+        raise HTTPException(status_code=409, detail="Case already has a respondent")
 
-    if case["created_by"] == user_id:
+    if case["claimant_id"] == user_id:
         raise HTTPException(
-            status_code=400, detail="Creator cannot join as counterpart"
+            status_code=400, detail="Claimant cannot join as respondent"
         )
 
-    supabase.table("cases").update({"counterpart_id": user_id, "status": "active"}).eq(
+    supabase.table("cases").update({"respondent_id": user_id, "status": "active"}).eq(
         "id", body.case_id
     ).execute()
 
@@ -137,15 +137,15 @@ def list_my_cases(
     supabase = get_supabase_for_user(access_token)
     response = (
         supabase.table("cases")
-        .select("id, title, status, created_at, created_by, counterpart_id")
-        .or_(f"created_by.eq.{user_id},counterpart_id.eq.{user_id}")
+        .select("id, title, status, created_at, claimant_id, respondent_id")
+        .or_(f"claimant_id.eq.{user_id},respondent_id.eq.{user_id}")
         .order("created_at", desc=True)
         .execute()
     )
 
     items = []
     for row in response.data or []:
-        my_role = "creator" if row["created_by"] == user_id else "counterparty"
+        my_role = "claimant" if row["claimant_id"] == user_id else "respondent"
         items.append(
             CaseListItem(
                 id=row["id"],
@@ -178,25 +178,25 @@ def get_case_detail(
 
     row = response.data[0]
 
-    if row["created_by"] != user_id and row.get("counterpart_id") != user_id:
+    if row["claimant_id"] != user_id and row.get("respondent_id") != user_id:
         raise HTTPException(status_code=403, detail="Not a participant")
 
-    my_role = "creator" if row["created_by"] == user_id else "counterparty"
+    my_role = "claimant" if row["claimant_id"] == user_id else "respondent"
     return CaseDetailResponse(
         id=row["id"],
         title=row["title"],
         description=row["description"],
         issue=row["issue"],
         status=row["status"],
-        created_by=row["created_by"],
-        counterpart_id=row.get("counterpart_id"),
+        claimant_id=row["claimant_id"],
+        respondent_id=row.get("respondent_id"),
         my_role=my_role,
         created_at=row["created_at"],
         invite_token=row["invite_token"],
-        creator_evidence_complete=row.get("creator_evidence_complete", False),
-        counterparty_evidence_complete=row.get("counterparty_evidence_complete", False),
-        creator_rebuttal_complete=row.get("creator_rebuttal_complete", False),
-        counterparty_rebuttal_complete=row.get("counterparty_rebuttal_complete", False),
+        claimant_evidence_complete=row.get("claimant_evidence_complete", False),
+        respondent_evidence_complete=row.get("respondent_evidence_complete", False),
+        claimant_rebuttal_complete=row.get("claimant_rebuttal_complete", False),
+        respondent_rebuttal_complete=row.get("respondent_rebuttal_complete", False),
         judge_agent_id=row["judge_agent_id"],
     )
 
@@ -252,7 +252,7 @@ async def add_evidence(
     if not res.data or len(res.data) == 0:
         raise HTTPException(status_code=404, detail="Case not found")
     case_row = res.data[0]
-    if case_row["created_by"] != user_id and case_row.get("counterpart_id") != user_id:
+    if case_row["claimant_id"] != user_id and case_row.get("respondent_id") != user_id:
         raise HTTPException(status_code=403, detail="Not a participant")
     if case_row["status"] != "active":
         raise HTTPException(
@@ -339,34 +339,34 @@ def complete_evidence(
     if not res.data or len(res.data) == 0:
         raise HTTPException(status_code=404, detail="Case not found")
     case_row = res.data[0]
-    if case_row["created_by"] != user_id and case_row.get("counterpart_id") != user_id:
+    if case_row["claimant_id"] != user_id and case_row.get("respondent_id") != user_id:
         raise HTTPException(status_code=403, detail="Not a participant")
-    my_role = "creator" if case_row["created_by"] == user_id else "counterparty"
+    my_role = "claimant" if case_row["claimant_id"] == user_id else "respondent"
     if case_row["status"] != "active":
         raise HTTPException(
             status_code=400, detail="Case is not in evidence submission phase"
         )
 
-    if my_role == "creator":
-        supabase.table("cases").update({"creator_evidence_complete": True}).eq(
+    if my_role == "claimant":
+        supabase.table("cases").update({"claimant_evidence_complete": True}).eq(
             "id", case_id
         ).execute()
     else:
-        supabase.table("cases").update({"counterparty_evidence_complete": True}).eq(
+        supabase.table("cases").update({"respondent_evidence_complete": True}).eq(
             "id", case_id
         ).execute()
 
     # 양측 모두 완료였는지 확인 후 status=rebutting
     updated = (
         supabase.table("cases")
-        .select("creator_evidence_complete, counterparty_evidence_complete")
+        .select("claimant_evidence_complete, respondent_evidence_complete")
         .eq("id", case_id)
         .execute()
     )
     if updated.data and len(updated.data) > 0:
         r = updated.data[0]
-        if r.get("creator_evidence_complete") and r.get(
-            "counterparty_evidence_complete"
+        if r.get("claimant_evidence_complete") and r.get(
+            "respondent_evidence_complete"
         ):
             supabase.table("cases").update({"status": "rebutting"}).eq(
                 "id", case_id
@@ -392,7 +392,7 @@ def list_my_evidence(
     if not response.data or len(response.data) == 0:
         raise HTTPException(status_code=404, detail="Case not found")
     case_row = response.data[0]
-    if case_row["created_by"] != user_id and case_row["counterpart_id"] != user_id:
+    if case_row["claimant_id"] != user_id and case_row["respondent_id"] != user_id:
         raise HTTPException(status_code=403, detail="Not a participant")
 
     response = (
@@ -438,17 +438,17 @@ def list_counterpart_evidence(
     if not response.data or len(response.data) == 0:
         raise HTTPException(status_code=404, detail="Case not found")
     case_row = response.data[0]
-    if case_row["created_by"] != user_id and case_row.get("counterpart_id") != user_id:
+    if case_row["claimant_id"] != user_id and case_row.get("respondent_id") != user_id:
         raise HTTPException(status_code=403, detail="Not a participant")
 
-    if case_row.get("counterpart_id") is None:
-        raise HTTPException(status_code=400, detail="Case has no counterpart yet")
+    if case_row.get("respondent_id") is None:
+        raise HTTPException(status_code=400, detail="Case has no respondent yet")
 
-    # 상대방 user_id: 내가 creator면 counterpart_id, 내가 counterpart면 created_by
+    # 상대방 user_id: 내가 claimant면 respondent_id, 내가 respondent면 claimant_id
     other_user_id = (
-        case_row["created_by"]
-        if user_id == case_row["counterpart_id"]
-        else case_row["counterpart_id"]
+        case_row["claimant_id"]
+        if user_id == case_row["respondent_id"]
+        else case_row["respondent_id"]
     )
 
     response = (
@@ -497,15 +497,15 @@ def rebut_evidence(
     if not res.data or len(res.data) == 0:
         raise HTTPException(status_code=404, detail="Case not found")
     case_row = res.data[0]
-    if case_row["created_by"] != user_id and case_row.get("counterpart_id") != user_id:
+    if case_row["claimant_id"] != user_id and case_row.get("respondent_id") != user_id:
         raise HTTPException(status_code=403, detail="Not a participant")
     if case_row.get("status") != "rebutting":
         raise HTTPException(status_code=400, detail="Case is not in rebutting phase")
 
     other_user_id = (
-        case_row["created_by"]
-        if user_id == case_row["counterpart_id"]
-        else case_row["counterpart_id"]
+        case_row["claimant_id"]
+        if user_id == case_row["respondent_id"]
+        else case_row["respondent_id"]
     )
     ev = (
         supabase.table("case_evidence")
@@ -590,26 +590,26 @@ def complete_rebuttal(
     if case_row.get("status") != "rebutting":
         raise HTTPException(status_code=400, detail="Case is not in rebutting phase")
 
-    my_role = "creator" if case_row["created_by"] == user_id else "counterparty"
-    if my_role == "creator":
-        supabase.table("cases").update({"creator_rebuttal_complete": True}).eq(
+    my_role = "claimant" if case_row["claimant_id"] == user_id else "respondent"
+    if my_role == "claimant":
+        supabase.table("cases").update({"claimant_rebuttal_complete": True}).eq(
             "id", case_id
         ).execute()
     else:
-        supabase.table("cases").update({"counterparty_rebuttal_complete": True}).eq(
+        supabase.table("cases").update({"respondent_rebuttal_complete": True}).eq(
             "id", case_id
         ).execute()
 
     updated = (
         supabase.table("cases")
-        .select("creator_rebuttal_complete, counterparty_rebuttal_complete")
+        .select("claimant_rebuttal_complete, respondent_rebuttal_complete")
         .eq("id", case_id)
         .execute()
     )
     if updated.data and len(updated.data) > 0:
         r = updated.data[0]
-        if r.get("creator_rebuttal_complete") and r.get(
-            "counterparty_rebuttal_complete"
+        if r.get("claimant_rebuttal_complete") and r.get(
+            "respondent_rebuttal_complete"
         ):
             supabase.table("cases").update({"status": "judging"}).eq(
                 "id", case_id
@@ -639,14 +639,14 @@ def get_case_results(
     if not res.data or len(res.data) == 0:
         raise HTTPException(status_code=404, detail="Case not found")
     row = res.data[0]
-    if row["created_by"] != user_id and row.get("counterpart_id") != user_id:
+    if row["claimant_id"] != user_id and row.get("respondent_id") != user_id:
         raise HTTPException(status_code=403, detail="Not a participant")
 
     return CaseResultsResponse(
         case_id=row["id"],
         judgment_content=row.get("judgment_content"),
-        fault_ratio_creator=row.get("fault_ratio_creator"),
-        fault_ratio_counterparty=row.get("fault_ratio_counterparty"),
+        fault_ratio_claimant=row.get("fault_ratio_claimant"),
+        fault_ratio_respondent=row.get("fault_ratio_respondent"),
         judged_at=row.get("judged_at"),
         status=row["status"],
     )
