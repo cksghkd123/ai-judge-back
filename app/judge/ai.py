@@ -125,7 +125,9 @@ async def request_judgment(case_id: str) -> None:
     user_prompt = build_user_prompt(context)
     agent_id = context.get("case", {}).get("judge_agent_id") or "default"
     agent = get_agent(agent_id)
-    system_prompt = get_system_prompt_for_agent(agent.persona, agent.style)
+    system_prompt = get_system_prompt_for_agent(
+        agent.persona, agent.style, agent_name=agent.name
+    )
 
     client = AsyncOpenAI(api_key=settings.openai_api_key.strip())
     resp = await client.chat.completions.create(
