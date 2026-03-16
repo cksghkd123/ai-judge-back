@@ -22,6 +22,7 @@ from app.schemas.case import (
     CreateCaseRequest,
     CreateCaseResponse,
     EvidenceResponse,
+    JudgeAgentResponse,
     JoinCaseRequest,
     RebuttalRequest,
     RebuttalResponse,
@@ -30,11 +31,11 @@ from app.schemas.case import (
 router = APIRouter(prefix="/judge", tags=["judge"])
 
 
-@router.get("/agents")
-def get_judge_agents() -> list[dict[str, str]]:
+@router.get("/agents", response_model=list[JudgeAgentResponse])
+def get_judge_agents() -> list[JudgeAgentResponse]:
     """판단 에이전트(자아) 목록. 사건 생성 시 선택용."""
 
-    return list_agents()
+    return [JudgeAgentResponse(**a) for a in list_agents()]
 
 
 @router.post("/case", response_model=CreateCaseResponse)

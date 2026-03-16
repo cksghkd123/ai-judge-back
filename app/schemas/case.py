@@ -17,6 +17,14 @@ class CreateCaseRequest(BaseModel):
     )
 
 
+class JudgeAgentResponse(BaseModel):
+    """판사 에이전트."""
+
+    id: str = Field(..., description="에이전트 ID")
+    name: str = Field(..., description="표시 이름")
+    judge_image: str | None = Field(None, description="판사 이미지 URL")
+
+
 class CreateCaseResponse(BaseModel):
     """사건 생성 응답."""
 

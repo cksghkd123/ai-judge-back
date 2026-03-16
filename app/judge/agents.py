@@ -39,7 +39,12 @@ def get_agent(agent_id: str | None) -> JudgeAgent:
     if key == DEFAULT_AGENT_ID:
         return DEFAULT_AGENT
     supabase = get_supabase()
-    res = supabase.table("judge_agents").select("id, name, persona, judge_image, style").eq("id", key).execute()
+    res = (
+        supabase.table("judge_agents")
+        .select("id, name, persona, judge_image, style")
+        .eq("id", key)
+        .execute()
+    )
     if not res.data or len(res.data) == 0:
         return DEFAULT_AGENT
     row = res.data[0]
@@ -54,23 +59,22 @@ def get_agent(agent_id: str | None) -> JudgeAgent:
 
 def list_agents() -> list[dict[str, str | None]]:
     """API용: default + DB 에이전트 목록. 각 항목 id, name, judge_image, style."""
-    out = [
-        {
-            "id": DEFAULT_AGENT.id,
-            "name": DEFAULT_AGENT.name,
-            "judge_image": DEFAULT_AGENT.judge_image,
-            "style": DEFAULT_AGENT.style,
-        },
-    ]
+    out = []
     supabase = get_supabase()
-    res = supabase.table("judge_agents").select("id, name, judge_image, style").order("created_at", desc=False).execute()
+    res = (
+        supabase.table("judge_agents")
+        .select("id, name, judge_image")
+        .order("created_at", desc=False)
+        .execute()
+    )
     for row in res.data or []:
-        out.append({
-            "id": str(row["id"]),
-            "name": row["name"],
-            "judge_image": row.get("judge_image"),
-            "style": row.get("style"),
-        })
+        out.append(
+            {
+                "id": str(row["id"]),
+                "name": row["name"],
+                "judge_image": row.get("judge_image"),
+            }
+        )
     return out
 
 
