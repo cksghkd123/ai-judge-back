@@ -40,11 +40,9 @@ def _gather_context(case_id: str) -> dict:
         .execute()
     )
     evidences = ev_res.data or []
-    claimant_evidences = [e for e in evidences if str(e["user_id"]) == str(claimant_id)]
-    respondent_evidences = [e for e in evidences if str(e["user_id"]) == str(respondent_id)]
     evidence_ids = [e["id"] for e in evidences]
 
-    rebuttals = []
+    rebuttals_raw = []
     if evidence_ids:
         reb_res = (
             supabase.table("case_evidence_rebuttal")
@@ -52,7 +50,33 @@ def _gather_context(case_id: str) -> dict:
             .in_("evidence_id", evidence_ids)
             .execute()
         )
-        rebuttals = list(reb_res.data or [])
+        rebuttals_raw = list(reb_res.data or [])
+
+    # evidence_id 별로 반박 묶기
+    rebuttals_by_evidence: dict = {}
+    for r in rebuttals_raw:
+        eid = r.get("evidence_id")
+        if eid is not None:
+            rebuttals_by_evidence.setdefault(str(eid), []).append({
+                "rebutter_user_id": r.get("rebutter_user_id"),
+                "accepted": r.get("accepted"),
+                "rebuttal": r.get("rebuttal"),
+            })
+
+    def with_rebuttals(ev_list: list) -> list:
+        out = []
+        for e in ev_list:
+            item = dict(e)
+            item["rebuttals"] = rebuttals_by_evidence.get(str(e.get("id")), [])
+            out.append(item)
+        return out
+
+    claimant_evidences = with_rebuttals(
+        [e for e in evidences if str(e["user_id"]) == str(claimant_id)]
+    )
+    respondent_evidences = with_rebuttals(
+        [e for e in evidences if str(e["user_id"]) == str(respondent_id)]
+    )
 
     return {
         "case": {
@@ -65,7 +89,6 @@ def _gather_context(case_id: str) -> dict:
         },
         "claimant_evidences": claimant_evidences,
         "respondent_evidences": respondent_evidences,
-        "rebuttals": rebuttals,
     }
 
 

@@ -37,18 +37,17 @@ SYSTEM_PROMPT = get_system_prompt_for_agent(
 
 def build_user_prompt(context: dict) -> str:
     """
-    사건·증거·반박 정보로 사용자 프롬프트 문자열 생성.
+    사건·증거(반박 포함) 정보로 사용자 프롬프트 문자열 생성.
     context: {
         "case": { "title", "description", "issue", "claimant_id", "respondent_id" },
-        "claimant_evidences": [ { "type", "content", "file_path" }, ... ],
+        "claimant_evidences": [ { "id", "type", "content", "file_path", "rebuttals": [ {...} ] }, ... ],
         "respondent_evidences": [ ... ],
-        "rebuttals": [ { "evidence_id", "rebutter_user_id", "accepted", "rebuttal" }, ... ]
     }
+    각 증거 항목에 그 증거에 대한 반박(rebuttals)이 묶여 있음.
     """
     case = context.get("case") or {}
     claimant_evidences = context.get("claimant_evidences") or []
     respondent_evidences = context.get("respondent_evidences") or []
-    rebuttals = context.get("rebuttals") or []
 
     lines = [
         "## 사건",
@@ -56,24 +55,24 @@ def build_user_prompt(context: dict) -> str:
         f"설명: {case.get('description', '')}",
         f"논점: {case.get('issue', '')}",
         "",
-        "## 청구인(claimant) 측 증거",
+        "## 청구인(claimant) 측 증거 (각 항목 아래에 해당 증거에 대한 상대방 반박을 함께 적음)",
     ]
     for i, e in enumerate(claimant_evidences, 1):
         lines.append(
-            f"  {i}. type={e.get('type')}, content={e.get('content') or '(없음)'}, file_path={e.get('file_path') or '(없음)'}"
+            f"  [Exhibit C{i}] type={e.get('type')}, content={e.get('content') or '(없음)'}, file_path={e.get('file_path') or '(없음)'}"
         )
+        for r in e.get("rebuttals") or []:
+            acc = "수용" if r.get("accepted") else "불수용"
+            lines.append(f"    → 상대 반박: {acc}, rebuttal={r.get('rebuttal') or '(없음)'}")
     lines.append("")
-    lines.append("## 응답인(respondent) 측 증거")
+    lines.append("## 응답인(respondent) 측 증거 (각 항목 아래에 해당 증거에 대한 상대방 반박을 함께 적음)")
     for i, e in enumerate(respondent_evidences, 1):
         lines.append(
-            f"  {i}. type={e.get('type')}, content={e.get('content') or '(없음)'}, file_path={e.get('file_path') or '(없음)'}"
+            f"  [Exhibit R{i}] type={e.get('type')}, content={e.get('content') or '(없음)'}, file_path={e.get('file_path') or '(없음)'}"
         )
-    lines.append("")
-    lines.append("## 반박 (증거별 상대방 의견)")
-    for r in rebuttals:
-        lines.append(
-            f"  evidence_id={r.get('evidence_id')}, accepted={r.get('accepted')}, rebuttal={r.get('rebuttal') or '(없음)'}"
-        )
+        for r in e.get("rebuttals") or []:
+            acc = "수용" if r.get("accepted") else "불수용"
+            lines.append(f"    → 상대 반박: {acc}, rebuttal={r.get('rebuttal') or '(없음)'}")
     lines.append("")
     lines.append(
         "위 사건에 대해 판단 요지(judgment_content)와 청구인·응답인 과실 비율(fault_ratio_claimant, fault_ratio_respondent, 합 100)을 JSON으로만 답하세요."
