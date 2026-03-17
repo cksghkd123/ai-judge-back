@@ -296,9 +296,12 @@ async def add_evidence(
         data = await file.read()
         if not data:
             raise HTTPException(status_code=400, detail="Empty file not allowed")
-        # Storage 경로: {case_id}/{user_id}/{uuid}_{filename}
-        ext = file.filename.split(".")[-1] if "." in file.filename else "bin"
-        safe_name = f"{uuid.uuid4()}_{file.filename or 'image'}"
+        # Storage 경로: {case_id}/{user_id}/{uuid}.{ext}
+        # 원본 파일명은 공백/유니코드로 인해 Storage signed URL 생성 시 InvalidKey가 날 수 있어 버립니다.
+        ext = file.filename.split(".")[-1].lower() if "." in file.filename else ""
+        if not ext or len(ext) > 10:
+            ext = "png" if (file.content_type or "").lower() == "image/png" else "jpg"
+        safe_name = f"{uuid.uuid4()}.{ext}"
         storage_path = f"{case_id}/{user_id}/{safe_name}"
         bucket = settings.supabase_storage_bucket
         get_supabase().storage.from_(bucket).upload(

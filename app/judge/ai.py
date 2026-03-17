@@ -18,6 +18,63 @@ from app.judge.prompts import (
     get_system_prompt_for_agent,
 )
 
+EVIDENCE_IMAGE_URL_EXPIRES_IN = 3600
+
+
+def _signed_url_for_storage_path(path: str) -> str | None:
+    """Supabase Storage file_path에 대한 signed URL 생성."""
+    bucket = (settings.supabase_storage_bucket or "").strip()
+    if not bucket:
+        return None
+    if not (path or "").strip():
+        return None
+    supabase = get_supabase()
+    storage = supabase.storage.from_(bucket)
+    res = storage.create_signed_url(path.strip(), EVIDENCE_IMAGE_URL_EXPIRES_IN)
+    # storage3: {"signedURL", "signedUrl"} 또는 객체
+    if isinstance(res, dict):
+        return res.get("signedUrl") or res.get("signedURL") or res.get("signed_url")
+    return (
+        getattr(res, "signedUrl", None)
+        or getattr(res, "signedURL", None)
+        or getattr(res, "signed_url", None)
+    )
+
+
+def _build_image_parts(context: dict) -> list[dict]:
+    """
+    증거 전역번호 순서(청구인→응답인) 그대로 이미지 파트를 생성.
+    - chat/photo + file_path가 있는 증거만 첨부
+    - 각 이미지 앞에 어떤 증거 번호인지 텍스트로 라벨링
+    """
+    parts: list[dict] = []
+
+    evidence_no = 1
+    for evidences in (
+        context.get("claimant_evidences") or [],
+        context.get("respondent_evidences") or [],
+    ):
+        for e in evidences:
+            if (e.get("type") or "").strip() not in ("chat", "photo"):
+                evidence_no += 1
+                continue
+            path = (e.get("file_path") or "").strip()
+            if not path:
+                evidence_no += 1
+                continue
+            try:
+                url = _signed_url_for_storage_path(path)
+            except Exception:
+                url = None
+            if not url:
+                evidence_no += 1
+                continue
+            parts.append({"type": "text", "text": f"[이미지 첨부] 증거 {evidence_no}"})
+            parts.append({"type": "image_url", "image_url": {"url": url}})
+            evidence_no += 1
+
+    return parts
+
 
 def _gather_context(case_id: str) -> dict:
     """사건·양측 증거·반박을 조회해 프롬프트용 context dict 반환."""
@@ -123,6 +180,7 @@ async def request_judgment(case_id: str) -> None:
 
     context = _gather_context(case_id)
     user_prompt = build_user_prompt(context)
+    image_parts = _build_image_parts(context)
     agent_id = context.get("case", {}).get("judge_agent_id") or "default"
     agent = get_agent(agent_id)
     system_prompt = get_system_prompt_for_agent(
@@ -130,11 +188,16 @@ async def request_judgment(case_id: str) -> None:
     )
 
     client = AsyncOpenAI(api_key=settings.openai_api_key.strip())
+    user_content: str | list[dict]
+    if image_parts:
+        user_content = [{"type": "text", "text": user_prompt}, *image_parts]
+    else:
+        user_content = user_prompt
     resp = await client.chat.completions.create(
         model=(settings.openai_model or "gpt-4o-mini"),
         messages=[
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
+            {"role": "user", "content": user_content},
         ],
     )
     content = (resp.choices[0].message.content or "").strip()
