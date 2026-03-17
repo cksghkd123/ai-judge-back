@@ -12,7 +12,7 @@ class CreateCaseRequest(BaseModel):
     description: str = Field(..., min_length=1, description="사건 설명")
     issue: str = Field(..., min_length=1, description="논점")
     claimant_name: str = Field(..., min_length=1, description="청구인 이름")
-    claimant_address: str = Field(..., min_length=1, description="청구인 주소")
+    claimant_address: str | None = Field(None, description="청구인 주소")
     claimant_jobs: list[str] = Field(default_factory=list, description="청구인 직업")
     claimant_profile_image: str | None = Field(
         None, description="청구인(claimant) 프로필 이미지 URL"
@@ -41,7 +41,7 @@ class CreateCaseResponse(BaseModel):
     status: str = Field(..., description="진행 상태")
     claimant_id: str = Field(..., description="청구인(claimant) user id")
     claimant_name: str = Field(..., description="청구인(claimant) 이름")
-    claimant_address: str = Field(..., description="청구인(claimant) 주소")
+    claimant_address: str | None = Field(None, description="청구인(claimant) 주소")
     claimant_jobs: list[str] = Field(..., description="청구인(claimant) 직업")
     claimant_profile_image: str | None = Field(
         None, description="청구인(claimant) 프로필 이미지 URL"
@@ -78,7 +78,7 @@ class CasePreviewResponse(BaseModel):
     status: str = Field(..., description="진행 상태")
     created_at: datetime = Field(..., description="생성 시각")
     claimant_name: str = Field(..., description="청구인 이름")
-    claimant_address: str = Field(..., description="청구인 주소")
+    claimant_address: str | None = Field(None, description="청구인 주소")
     claimant_jobs: list[str] = Field(default_factory=list, description="청구인 직업")
     claimant_profile_image: str | None = Field(
         None, description="청구인 프로필 이미지 URL"
@@ -95,7 +95,7 @@ class CaseDetailResponse(BaseModel):
     status: str = Field(..., description="진행 상태")
     claimant_id: str = Field(..., description="청구인 user id")
     claimant_name: str = Field(..., description="청구인 이름")
-    claimant_address: str = Field(..., description="청구인 주소")
+    claimant_address: str | None = Field(None, description="청구인 주소")
     claimant_jobs: list[str] = Field(..., description="청구인 직업")
     claimant_profile_image: str | None = Field(
         None, description="청구인 프로필 이미지 URL"
