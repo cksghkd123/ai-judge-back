@@ -583,6 +583,62 @@ def rebut_evidence(
     )
 
 
+@router.get(
+    "/case/{case_id}/rebuttals",
+    response_model=list[RebuttalResponse],
+)
+def list_case_rebuttals(
+    case_id: str,
+    current_user: dict = Depends(get_current_user),
+    access_token: str = Depends(get_access_token),
+) -> list[RebuttalResponse]:
+    """해당 사건의 반박 목록(양측 포함)."""
+
+    user_id = current_user.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User id not found")
+
+    supabase = get_supabase_for_user(access_token)
+    res = supabase.table("cases").select("*").eq("id", case_id).execute()
+    if not res.data or len(res.data) == 0:
+        raise HTTPException(status_code=404, detail="Case not found")
+    case_row = res.data[0]
+    if case_row["claimant_id"] != user_id and case_row.get("respondent_id") != user_id:
+        raise HTTPException(status_code=403, detail="Not a participant")
+
+    ev_res = (
+        supabase.table("case_evidence")
+        .select("id")
+        .eq("case_id", case_id)
+        .order("created_at", desc=False)
+        .execute()
+    )
+    evidence_ids = [row["id"] for row in (ev_res.data or [])]
+    if not evidence_ids:
+        return []
+
+    reb_res = (
+        supabase.table("case_evidence_rebuttal")
+        .select("id, evidence_id, rebutter_user_id, accepted, rebuttal, created_at")
+        .in_("evidence_id", evidence_ids)
+        .order("created_at", desc=False)
+        .execute()
+    )
+    out = []
+    for row in reb_res.data or []:
+        out.append(
+            RebuttalResponse(
+                id=row["id"],
+                evidence_id=row["evidence_id"],
+                rebutter_user_id=row["rebutter_user_id"],
+                accepted=row["accepted"],
+                rebuttal=row.get("rebuttal"),
+                created_at=row["created_at"],
+            )
+        )
+    return out
+
+
 @router.post("/case/{case_id}/rebuttal/complete")
 def complete_rebuttal(
     case_id: str,
