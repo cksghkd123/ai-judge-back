@@ -14,7 +14,9 @@ def get_current_user(
 ) -> dict:
     """Authorization: Bearer <Supabase access_token> 검증 후 payload 반환."""
     if not credentials or credentials.scheme.lower() != "bearer":
-        raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
+        raise HTTPException(
+            status_code=401, detail="Missing or invalid authorization header"
+        )
     try:
         return verify_supabase_token(credentials.credentials)
     except Exception:

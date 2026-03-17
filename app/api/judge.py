@@ -234,6 +234,10 @@ def get_case_preview(case_id: str) -> CasePreviewResponse:
         issue=row["issue"],
         status=row["status"],
         created_at=row["created_at"],
+        claimant_name=row.get("claimant_name") or "",
+        claimant_address=row.get("claimant_address") or "",
+        claimant_jobs=row.get("claimant_jobs") or [],
+        claimant_profile_image=row.get("claimant_profile_image"),
     )
 
 
@@ -597,7 +601,7 @@ def complete_rebuttal(
     if not res.data or len(res.data) == 0:
         raise HTTPException(status_code=404, detail="Case not found")
     case_row = res.data[0]
-    if case_row["created_by"] != user_id and case_row.get("counterpart_id") != user_id:
+    if case_row["claimant_id"] != user_id and case_row.get("respondent_id") != user_id:
         raise HTTPException(status_code=403, detail="Not a participant")
     if case_row.get("status") != "rebutting":
         raise HTTPException(status_code=400, detail="Case is not in rebutting phase")

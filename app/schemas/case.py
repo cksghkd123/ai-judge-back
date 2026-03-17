@@ -77,6 +77,12 @@ class CasePreviewResponse(BaseModel):
     issue: str = Field(..., description="논점")
     status: str = Field(..., description="진행 상태")
     created_at: datetime = Field(..., description="생성 시각")
+    claimant_name: str = Field(..., description="청구인 이름")
+    claimant_address: str = Field(..., description="청구인 주소")
+    claimant_jobs: list[str] = Field(default_factory=list, description="청구인 직업")
+    claimant_profile_image: str | None = Field(
+        None, description="청구인 프로필 이미지 URL"
+    )
 
 
 class CaseDetailResponse(BaseModel):
