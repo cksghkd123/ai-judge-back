@@ -17,6 +17,7 @@ class JudgeAgent:
     persona: str
     judge_image: str | None = None
     style: str | None = None
+    judgment_structure: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -41,7 +42,7 @@ def get_agent(agent_id: str | None) -> JudgeAgent:
     supabase = get_supabase()
     res = (
         supabase.table("judge_agents")
-        .select("id, name, persona, judge_image, style")
+        .select("id, name, persona, judge_image, style, judgment_structure")
         .eq("id", key)
         .execute()
     )
@@ -54,6 +55,7 @@ def get_agent(agent_id: str | None) -> JudgeAgent:
         persona=row["persona"],
         judge_image=row.get("judge_image"),
         style=row.get("style"),
+        judgment_structure=row.get("judgment_structure"),
     )
 
 

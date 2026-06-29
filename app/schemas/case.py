@@ -161,6 +161,37 @@ class RebuttalResponse(BaseModel):
     created_at: datetime = Field(..., description="작성 시각")
 
 
+class JudgmentResult(BaseModel):
+    """
+    AI 판단 결과 — 출력 형식의 단일 소스(single source of truth).
+
+    Claude structured outputs(`messages.parse`)로 이 스키마를 강제한다.
+    출력 형식을 바꾸려면 여기 한 곳만 수정하면 프롬프트·검증·파싱이 함께 따라온다.
+    내용 규칙(markdown, 합 100, 증거 인용)은 각 필드 description 에 담아 모델에 전달한다.
+    """
+
+    judgment_content: str = Field(
+        ...,
+        description=(
+            "판단 요지. Markdown으로 작성(## 제목, - 목록, 1. 번호). "
+            "본문에서 [증거 n]을 최소 3개 이상 인용하고, 각 증거에 대한 반박도 함께 언급하며 "
+            "논리적으로 서술. 문단 구분은 빈 줄로."
+        ),
+    )
+    fault_ratio_claimant: int = Field(
+        ...,
+        ge=0,
+        le=100,
+        description="청구인(claimant) 과실 비율 0~100 정수. respondent와 합이 반드시 100.",
+    )
+    fault_ratio_respondent: int = Field(
+        ...,
+        ge=0,
+        le=100,
+        description="응답인(respondent) 과실 비율 0~100 정수. claimant와 합이 반드시 100.",
+    )
+
+
 class JudgmentSubmitRequest(BaseModel):
     """판단 등록 요청."""
 
