@@ -15,7 +15,7 @@
 
 - **FastAPI** (Python 3.12) — REST API
 - **Supabase** — PostgreSQL, Auth(JWT), Storage
-- **OpenAI API** — 판결문 생성
+- **Anthropic Claude API** — 판결문 생성
 - **Nuxt 3 / Vue** — 프론트엔드 (별도 저장소)
 
 ## 설계에서 신경 쓴 것
@@ -67,7 +67,7 @@ LLM 호출은 응답까지 수십 초가 걸립니다. 요청을 붙잡아 두�
 ```bash
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-cp app/.env.example app/.env   # Supabase / OpenAI 키 입력
+cp app/.env.example app/.env   # Supabase / Anthropic 키 입력
 uvicorn app.main:app --reload
 ```
 
