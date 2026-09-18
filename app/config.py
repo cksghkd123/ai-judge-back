@@ -24,7 +24,7 @@ class Settings(BaseSettings):
 
     anthropic_api_key: str = ""
     """Anthropic API 키. 비어 있으면 판단 요청 시 AI 호출을 스킵합니다."""
-    anthropic_model: str = "claude-opus-4-8"
+    anthropic_model: str = "claude-opus-5"
     """판단 요청에 사용할 채팅 모델."""
 
 

@@ -173,7 +173,7 @@ async def request_judgment(case_id: str) -> None:
     else:
         user_content = user_prompt
     resp = await client.messages.parse(
-        model=(settings.anthropic_model or "claude-opus-4-8"),
+        model=(settings.anthropic_model or "claude-opus-5"),
         max_tokens=16000,
         thinking={"type": "adaptive"},
         system=system_prompt,
